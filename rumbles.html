@@ -1,0 +1,3068 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rumbles Live Standings — Base</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-border: #262b36;
+    --text: #e8eaf0;
+    --text-dim: #9aa1b0;
+    --accent: #ff8a3d;
+    --accent-2: #4d9fff;
+    --good: #35c26b;
+    --bad: #e5484d;
+    --live: #35c26b;
+    --row-alt: #1c202a;
+    /* Matchup-pair tagging dots -- 6 slots covers every matchup in a
+       12-team league. Chosen so each of the 6 is clearly distinguishable
+       from EVERY other color that appears as text on this page, not just
+       from each other: matchup-1 used to be a cyan (#1aa7c9) that read as
+       just a lighter shade of --accent-2 (the default "Points This
+       Week"/"This Week" blue, #4d9fff) at a glance -- swapped for a true
+       purple (well clear of blue's hue) to fix that. matchup-5 used to be
+       a blue-violet that would have collided with the new purple, so it
+       moved to teal (pushed further from blue's hue than the old cyan
+       was, and far enough from matchup-4's true green to still read as
+       its own color). matchup-6 used to be almost the same red as --bad;
+       it's now a deeper, more muted maroon so it doesn't get lost against
+       either --bad or --accent (orange). matchup-2 (amber) and matchup-4
+       (green -- also reused as the "live game" highlight color elsewhere
+       on the page, see .pts-tooltip-live below) were already distinct
+       enough and are unchanged. */
+    --matchup-1: #a855f7;
+    --matchup-2: #c98500;
+    --matchup-3: #d6399e;
+    --matchup-4: #008300;
+    --matchup-5: #14b8a6;
+    --matchup-6: #a13d54;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f5f6f9;
+      --panel: #ffffff;
+      --panel-border: #e2e5ec;
+      --text: #1a1d24;
+      --text-dim: #666e7e;
+      --accent: #e26a1f;
+      --accent-2: #2f6fd6;
+      --good: #1f9d52;
+      --bad: #d43b40;
+      --live: #1f9d52;
+      --row-alt: #f8f9fc;
+      --matchup-1: #9333ea;
+      --matchup-2: #eda100;
+      --matchup-3: #c23b8a;
+      --matchup-4: #008300;
+      --matchup-5: #0d9488;
+      --matchup-6: #8a2e42;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 20px 16px 48px;
+  }
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  h1 {
+    font-size: 1.35rem;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .subtitle {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin: 0;
+  }
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    padding: 5px 10px 5px 8px;
+    border-radius: 999px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .dot.live {
+    background: var(--live);
+    box-shadow: 0 0 0 0 rgba(53, 194, 107, 0.6);
+    animation: pulse 1.8s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(53, 194, 107, 0.55); }
+    70% { box-shadow: 0 0 0 7px rgba(53, 194, 107, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(53, 194, 107, 0); }
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  /* The Base version's entry point: paste any Sleeper league ID here to
+     load that league's own Rumbles standings, instead of the private DTF
+     Club version's one fixed, bundled league. Sits directly under the
+     header, above the status row, so it's the first interactive thing on
+     the page -- exactly where a blank-table page's one required action
+     belongs. */
+  .league-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .league-input-row label {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+  .league-input-row input {
+    flex: 1 1 240px;
+    min-width: 160px;
+    max-width: 320px;
+    border: 1px solid var(--panel-border);
+    background: var(--panel);
+    color: var(--text);
+    padding: 7px 12px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font: inherit;
+  }
+  .league-input-row input:focus {
+    outline: 2px solid var(--accent-2);
+    outline-offset: 1px;
+  }
+  .league-input-error {
+    font-size: 0.76rem;
+    color: var(--bad);
+  }
+  .toggle-group {
+    display: inline-flex;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 999px;
+    padding: 3px;
+    font-size: 0.78rem;
+  }
+  .toggle-group button {
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+  }
+  .toggle-group button.active {
+    background: var(--accent);
+    color: #1a1108;
+  }
+  .refresh-btn {
+    border: 1px solid var(--panel-border);
+    background: var(--panel);
+    color: var(--text);
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .refresh-btn:active { transform: scale(0.97); }
+  .refresh-btn[disabled] { opacity: 0.5; cursor: default; }
+  /* "How to Use" button reuses .refresh-btn's exact pill styling; the
+     dotted underline is the same "this is interactive/has more info"
+     affordance used elsewhere on the page (see td.thisweek-pts.has-tooltip
+     above), since there's no hover cursor to discover it on a touch device. */
+  .howto-btn {
+    text-decoration: underline dotted;
+    text-decoration-color: var(--panel-border);
+    text-underline-offset: 3px;
+  }
+  /* Static explainer tooltip for the "How to Use" button -- unlike
+     .pts-tooltip (a per-row, JS-rendered table of nowrap cells), this is
+     fixed, hand-written paragraph content that WRAPS at a comfortable
+     reading width, so it gets its own width/white-space treatment rather
+     than sharing .pts-tooltip's rules. pointer-events stays enabled (the
+     Pts tooltip disables it) so the text can be selected/read at leisure
+     while it's pinned open by a click. */
+  .howto-tooltip {
+    position: fixed;
+    z-index: 50;
+    width: 320px;
+    max-width: 90vw;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    visibility: hidden;
+  }
+  .howto-tooltip.visible { opacity: 1; visibility: visible; }
+  .howto-tooltip p { margin: 0 0 10px; }
+  .howto-tooltip p:last-child { margin-bottom: 0; }
+  .howto-tooltip .howto-heading {
+    margin: 0 0 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+  }
+  .howto-tooltip .howto-note { color: var(--text-dim); font-size: 0.76rem; }
+  .table-panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  /* The standings table is wide (10 columns) -- rather than let columns
+     get squeezed or silently clipped on a narrow screen, this scrolls
+     horizontally and keeps Rank + Manager pinned so you always know which
+     row you're looking at while you scroll through the stats. */
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  thead th {
+    text-align: center;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--panel-border);
+    white-space: nowrap;
+  }
+  /* Every column is center-aligned except Manager (column 2), which stays
+     left-aligned since it's a name, not a number/stat. */
+  thead th:nth-child(2) { text-align: left; }
+  thead th.sortable { cursor: pointer; user-select: none; }
+  thead th.sortable:hover { color: var(--text); }
+  thead th.sort-active { color: var(--text); }
+  .matchup-name { font-weight: 700; }
+  tbody td {
+    padding: 9px 12px;
+    text-align: center;
+    border-bottom: 1px solid var(--panel-border);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) { background: var(--row-alt); }
+  td.manager { text-align: left; }
+  td.rank { font-variant-numeric: tabular-nums; color: var(--text-dim); width: 40px; min-width: 40px; }
+  td.manager { font-weight: 600; }
+  td.rumbles { font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+  /* "This Week" (the Rumbles-earned column) never carries a LIVE badge --
+     only "Points This Week" does -- so it needs none of the reserved-strip
+     treatment below and stays a plain centered cell. */
+  td.thisweek { color: var(--accent-2); font-variant-numeric: tabular-nums; }
+  /* position: relative + reserved right padding (whether or not a LIVE
+     badge actually shows this row) is what keeps the number itself always
+     landing in the exact same spot column-wide -- the badge is pulled out
+     of normal text flow and pinned into that reserved strip (see
+     td.thisweek-pts .badge-live below), instead of just being appended
+     after the number's text, which used to shift the number left/right of
+     its usual spot depending on whether that particular row had a badge
+     (a real, common case for "Points This Week" specifically, since
+     this_week_points_live can differ row-to-row -- see
+     hasIncompletePlayer's comment). */
+  td.thisweek-pts { color: var(--accent-2); font-variant-numeric: tabular-nums; position: relative; padding-right: 33px; }
+  /* Only added to a "Pts This Week" cell that actually has a per-player
+     breakdown to show (see render()/thisWeekTooltip) -- the dotted
+     underline is the only visual hint that it's interactive, since there's
+     no hover cursor to discover it on a touch device. */
+  td.thisweek-pts.has-tooltip {
+    cursor: help;
+    text-decoration: underline dotted;
+    text-decoration-color: var(--panel-border);
+    text-underline-offset: 3px;
+  }
+  td { font-variant-numeric: tabular-nums; }
+  /* Custom tooltip for the "Pts This Week" cell's per-player breakdown --
+     a native title-attribute tooltip works fine on desktop hover, but
+     never appears at all on tap on mobile, so this single reusable,
+     JS-positioned element replaces it and is driven by both hover (desktop)
+     and tap (any device) -- see the pts-tooltip show/hide/toggle functions.
+     position: fixed (not absolute) deliberately -- .table-panel above has
+     overflow:hidden, which would otherwise clip an absolutely-positioned
+     tooltip anchored inside it. */
+  .pts-tooltip {
+    position: fixed;
+    z-index: 50;
+    /* Shrinks to fit the table's own intrinsic width (minimized -- see
+       .pts-tooltip table below), never wider than it needs to be to show
+       every player's full name with no ellipsis truncation. Capped only
+       as an absolute last-resort safety valve against a genuinely tiny
+       viewport, not as a normal operating constraint. */
+    width: max-content;
+    max-width: 92vw;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 0.78rem;
+    line-height: 1.35;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+  }
+  .pts-tooltip.visible { opacity: 1; visibility: visible; }
+  /* Rendered as a real <table> (see renderPtsTooltipContent), columns
+     [kickoff time?, name, Actual, Proj] -- the kickoff-time column only
+     exists at all in Projected mode. width/min-width explicitly reset --
+     the page's global `table` rule (min-width: 760px, meant for the
+     standings table) would otherwise force this tiny tooltip table just
+     as wide, blowing right through the container's shrink-to-fit sizing. */
+  .pts-tooltip table { border-collapse: collapse; width: auto; min-width: 0; }
+  .pts-tooltip th, .pts-tooltip td {
+    padding: 1px 10px 1px 10px;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .pts-tooltip th:last-child, .pts-tooltip td:last-child { padding-right: 0; }
+  .pts-tooltip th {
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-dim);
+    font-weight: 600;
+    padding-bottom: 3px;
+  }
+  /* Kickoff-time column ("Mon 1pm") -- right-aligned and pulled in tight
+     (minimal padding on both sides) so it sits close against the
+     left-aligned name column right next to it, smaller font since it's a
+     compact secondary detail, not one of the two headline numbers. The
+     dimmed color here is only the FALLBACK for a row with no resolvable
+     timeslot color -- renderPtsTooltipContent sets an inline color (one
+     per distinct kickoff time this week, see buildTimeSlotColors) on the
+     cell itself whenever one is available, which wins over this. */
+  .pts-tooltip td.pts-tooltip-time, .pts-tooltip th.pts-tooltip-time {
+    text-align: right;
+    padding-left: 0;
+    padding-right: 4px;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+  }
+  /* Player name -- left-aligned, no truncation: every name is shown in
+     full (the container shrinks/grows to fit -- see .pts-tooltip above),
+     so there's deliberately no max-width/ellipsis here. Tight left
+     padding keeps it close against the kickoff-time column when present. */
+  .pts-tooltip td.pts-tooltip-name, .pts-tooltip th.pts-tooltip-name {
+    text-align: left;
+    padding-left: 4px;
+  }
+  /* The Projected-mode tooltip's real-actual-total reference line ("162.34:
+     Actual Pts" -- see renderPtsTooltipContent/thisWeekTooltip), rendered
+     into a colspan="2" cell that takes over the header row's kickoff-time
+     AND name columns, flush against the tooltip's left edge (directly
+     above the kickoff-time column's own values, not offset past it). Kept
+     short (no manager name) so it shares this row with Actual/Proj neatly
+     instead of forcing the tooltip wider. padding-left:0 here (overriding
+     the 4px left padding .pts-tooltip-name normally carries, since this
+     cell also has that class) so the text's left edge lines up EXACTLY
+     with the kickoff-time column's own left edge below it (that column
+     also has padding-left:0, see .pts-tooltip-time) -- without this the
+     two were visibly offset by that 4px. Overrides the plain .pts-tooltip
+     th rule's uppercase/dimmed/small caption styling -- that reads fine
+     for a one-word column label like "ACTUAL", but the same treatment
+     made this line hard to read at a glance, so this is normal case,
+     full-color text instead, with a bit more weight than a plain player
+     row to still read as the header/reference line it is. Left-aligned
+     (not centered like Actual/Proj), and never wraps -- same reasoning as
+     every other tooltip cell (see .pts-tooltip th/td above): the tooltip
+     box grows to fit rather than clipping or wrapping content. */
+  .pts-tooltip th.pts-tooltip-actual-total {
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--text);
+    font-weight: 700;
+    padding-left: 0;
+    font-size: 0.72rem;
+    padding-bottom: 4px;
+  }
+  /* A player currently in a live (in-progress) game -- their name, actual
+     score, AND projected score (not the kickoff time, which keeps its own
+     per-timeslot color) are colored with one of the existing manager
+     matchup-pair colors (not a new color introduced just for this) so
+     "live" reads as this page's own established green. The projected cell
+     joined this rule so an in-progress player's still-updating blended
+     estimate (see blendedProjection in the script below) reads as visibly
+     "live" too, matching the name/actual cells instead of looking static
+     next to them. */
+  .pts-tooltip tr.pts-tooltip-live td.pts-tooltip-name,
+  .pts-tooltip tr.pts-tooltip-live td.pts-tooltip-actual,
+  .pts-tooltip tr.pts-tooltip-live td.pts-tooltip-proj {
+    color: var(--matchup-4);
+  }
+  /* Rank + Manager stay visible while the rest of the row scrolls under them. */
+  thead th:first-child, td.rank {
+    position: sticky; left: 0; z-index: 2;
+    background: var(--panel);
+  }
+  thead th:nth-child(2), td.manager {
+    position: sticky; left: 40px; z-index: 2;
+    background: var(--panel);
+    box-shadow: 1px 0 0 var(--panel-border);
+  }
+  tbody tr:nth-child(even) td.rank, tbody tr:nth-child(even) td.manager {
+    background: var(--row-alt);
+  }
+  .scroll-hint {
+    display: none;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    padding: 6px 12px 0;
+  }
+  @media (max-width: 640px) {
+    /* Rumble %, PF, PA, H2H and Vs. Field stay reachable by scrolling right
+       in portrait, same as landscape -- they're NOT removed from the table.
+       #, Manager, Rumbles, This Week and Points This Week are just the
+       columns explicitly sized to all fit in the default (unscrolled) view
+       (see the explicit widths below); the standings table keeps its
+       normal min-width: 760px (from the base `table` rule, untouched here)
+       so the remaining columns keep their natural width beyond that and the
+       table stays genuinely wider than the viewport -- which is what makes
+       it scrollable at all. An earlier version of this page hid those
+       columns outright in portrait instead of leaving them
+       scroll-to-reveal; that was reverted so portrait matches landscape's
+       "swipe to see more" behavior instead of removing the data. */
+    .scroll-hint { display: block; }
+    /* Letting header labels wrap onto two lines (instead of the page's
+       normal nowrap headers) is what actually buys back the width here --
+       most of these columns hold a one- or two-digit number, so it's the
+       header text ("PTS THIS WEEK", "THIS WEEK", "RUMBLES"), not the data,
+       that was forcing each column wider than it needs to be. Freeing that
+       up, together with dropping the "This Week" LIVE badge's reserved
+       space entirely and tightening "Points This Week"'s, is what gets #,
+       Manager, Rumbles, This Week and Points This Week to all fit in the
+       viewport with no horizontal scroll needed on a portrait phone --
+       verified at 390px wide. */
+    thead th { padding: 6px 4px; font-size: 0.62rem; white-space: normal; word-break: normal; line-height: 1.2; }
+    tbody td { padding: 8px 4px; font-size: 0.78rem; }
+    h1 { font-size: 1.15rem; }
+    /* Explicit widths on the five columns meant to all fit in the default
+       (unscrolled) view in portrait (#, Manager, Rumbles, This Week, Points
+       This Week) -- table auto-layout otherwise sizes every column to its
+       widest UNWRAPPED content, which always overflows a portrait phone
+       regardless of how much the header/cell text COULD wrap. Pinning a
+       width here is what actually forces that wrap and keeps these five
+       within the viewport; Manager gets an ellipsis fallback for the rare
+       case its name plus a "W"/"nL" streak badge suffix (see render())
+       still doesn't fit. The remaining columns
+       (Rumble %, PF, PA, H2H, Vs. Field) keep their natural, wider width and
+       stay reachable by scrolling right, exactly like landscape. */
+    table thead th:nth-child(1), table td.rank { width: 24px; min-width: 24px; padding-left: 6px; padding-right: 2px; }
+    table thead th:nth-child(2), table td.manager { width: 108px; max-width: 108px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    table thead th:nth-child(3), table td.rumbles { width: 44px; }
+    table thead th:nth-child(4), table td.thisweek { width: 48px; }
+    /* Widened enough to fit both the number (up to a few digits) and the
+       reserved LIVE-badge strip without the two overlapping -- the badge
+       itself (~27px incl. border) can't shrink below its own content, so
+       the reserved padding-right (inherited from td.thisweek-pts above)
+       sets a floor on how far this column can be tightened. */
+    table thead th:nth-child(5), table td.thisweek-pts { width: 76px; }
+    /* The Manager column's sticky offset is normally a fixed 40px (see
+       "thead th:nth-child(2), td.manager" above), matching the Rank
+       column's fixed 40px width on desktop -- since Rank shrinks to 24px
+       here, Manager's sticky offset has to shrink to match or it visually
+       overlaps/hides the start of the Rumbles column beside it. */
+    table thead th:nth-child(2), table td.manager { left: 24px; }
+  }
+  /* Landscape phones are wide enough (often 700-950px) to miss the
+     max-width breakpoint above but short enough that the table still
+     needs to scroll to see every column -- catch those by height +
+     orientation instead of width. */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .scroll-hint { display: block; }
+    table { min-width: 640px; }
+    thead th { padding: 6px 7px; font-size: 0.64rem; }
+    tbody td { padding: 6px 7px; font-size: 0.76rem; }
+    h1 { font-size: 1.1rem; }
+    header { margin-bottom: 8px; }
+  }
+  .badge-live {
+    display: inline-block;
+    font-size: 0.54rem;
+    font-weight: 700;
+    color: var(--live);
+    border: 1px solid var(--live);
+    border-radius: 4px;
+    padding: 0px 3px;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+  /* Pulls the LIVE badge out of the number's own text flow in the "Points
+     This Week" cell specifically, pinning it into the reserved
+     right-padding strip that cell always carries (see td.thisweek-pts
+     above) instead of letting it sit inline right after the digits --
+     that's what keeps the number itself perfectly aligned whether or not
+     this particular row's badge is showing, while sitting as close to the
+     value as the strip allows. Every other .badge-live usage (the QB
+     Injury Backup Adjustments table, etc) is untouched by this override;
+     "This Week" no longer shows a LIVE badge at all. */
+  td.thisweek-pts .badge-live {
+    position: absolute;
+    right: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 0;
+  }
+  footer {
+    margin-top: 14px;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+  }
+  .error-banner {
+    display: none;
+    background: rgba(229, 72, 77, 0.12);
+    border: 1px solid var(--bad);
+    color: var(--bad);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.78rem;
+    margin-bottom: 12px;
+  }
+  .error-banner.show { display: block; }
+  .section-title {
+    font-size: 1rem;
+    margin: 22px 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .section-subtitle {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin: 0 0 10px;
+  }
+  .footnote {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    margin: 10px 2px 0;
+    line-height: 1.5;
+  }
+  /* "W"/"nW"/"L"/"nL" appended after the manager name for the manager's
+     current H2H winning/losing streak as of last week -- pregame Actual
+     mode only, alongside the "Last Week"/"Pts Last Week" relabeled columns
+     it gives context for (see buildCombinedStandings' last_week_h2h_streak
+     / computeH2hStreak). Plain bold text, no tooltip/interactivity -- the
+     badge text alone is the whole fact. */
+  .lastweek-h2h-badge { font-weight: 700; }
+  .lastweek-h2h-win { color: var(--good); }
+  .lastweek-h2h-loss { color: var(--bad); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Rumbles Live Standings</h1>
+      <p class="subtitle" id="subtitle">Paste a league ID to begin</p>
+    </div>
+    <div class="controls">
+      <div class="toggle-group" role="group" aria-label="Scoring source">
+        <button type="button" id="mode-actual" class="active">Actual</button>
+        <button type="button" id="mode-custom">Projected</button>
+      </div>
+      <button type="button" class="refresh-btn" id="refresh-btn">Refresh now</button>
+      <button type="button" class="refresh-btn howto-btn" id="howto-btn" aria-describedby="howto-tooltip">How to Use</button>
+    </div>
+  </header>
+
+  <div class="league-input-row">
+    <label for="league-id-input">Sleeper League ID</label>
+    <input type="text" id="league-id-input" placeholder="e.g. 1289456582938275840" inputmode="numeric" autocomplete="off" spellcheck="false" />
+    <button type="button" class="refresh-btn" id="league-id-btn">Load League</button>
+    <span class="league-input-error" id="league-id-error"></span>
+  </div>
+
+  <div class="status-row" style="margin-bottom:12px;">
+    <span class="status-pill"><span class="dot" id="status-dot"></span><span id="status-text">Checking status…</span></span>
+    <span class="status-pill" id="updated-pill">Last updated —</span>
+  </div>
+
+  <div class="error-banner" id="error-banner"></div>
+
+  <div class="table-panel">
+    <div class="scroll-hint">Swipe to see more stats →</div>
+    <div class="table-scroll">
+    <table id="standings-table">
+      <thead>
+        <tr>
+          <th id="th-rank" data-key="rank" title="Season standing (by Rumbles, then PF) -- sortable like any other column, but each team's own # never changes just because a different column is sorted">#</th>
+          <th id="th-manager" data-key="manager">Manager</th>
+          <th id="th-rumbles" data-key="rumbles">Rumbles</th>
+          <th id="th-thisweek" data-key="this_week">This Week</th>
+          <th id="th-points" data-key="this_week_points">Pts This Week</th>
+          <th id="th-pct" data-key="rumble_pct">Rumble %</th>
+          <th id="th-pf" data-key="pf">PF</th>
+          <th id="th-pa" data-key="pa">PA</th>
+          <th id="th-h2h" data-key="h2h">H2H</th>
+          <th id="th-vsfield" data-key="vs_field">Vs. Field</th>
+        </tr>
+      </thead>
+      <tbody id="standings-body">
+        <tr><td colspan="10"><div class="empty-state">Paste a Sleeper league ID above to load its Rumbles standings.</div></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <footer>
+    <span>9 Rumbles for the H2H win, +1 per team outscored that week (up to 20/week).</span>
+    <span id="live-week-label"></span>
+  </footer>
+</div>
+
+<div id="pts-tooltip" class="pts-tooltip" role="tooltip" aria-hidden="true"></div>
+
+<div id="howto-tooltip" class="howto-tooltip" role="tooltip" aria-hidden="true">
+  <p class="howto-heading">Actual</p>
+  <p>Shows the most recently completed week's real standings: Rumbles, Rumble %, PF, PA, H2H, and Vs. Field are all locked in from that finished week. Once a new week kicks off, it tracks the actual points scored so far and shows what this week's Rumbles would be if the week ended right now, without adding them to the season Rumbles total yet. Hover or tap a team's Pts This Week to see exactly which players have contributed to that score.</p>
+  <p class="howto-heading">Projected</p>
+  <p>The tab to watch during a live week. It scores the week using projected points and folds the result straight into the season totals, giving an early look at where the standings could land if the week ended right now. Hover or tap a team's Pts This Week to see which players are still to play or currently in a game, along with their kickoff time.</p>
+  <p>In both tabs, manager names are colored by this week's matchup, and whichever manager is currently ahead has their This Week and Pts This Week values colored to match.</p>
+  <p class="howto-note">Standings refresh automatically every 30 seconds during a live week, or hit Refresh now for an update right away.</p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var API_V1 = "https://api.sleeper.app/v1";
+  var STATS_BASE = "https://api.sleeper.app/stats/nfl";
+  var PROJECTIONS_BASE = "https://api.sleeper.app/projections/nfl";
+  // Sleeper's own live-scoreboard endpoint -- /scores/nfl/{season_type}/{season}/{week}
+  // -- returns one entry per NFL game with a "status" field ("pre_game" /
+  // "in_progress" / "complete") and the two teams playing. This is what
+  // lets the "Points This Week" tooltip tell a genuinely-finished game
+  // apart from a still-in-progress one (both look identical from the bulk
+  // stats/projections payloads alone -- a player who's already played has
+  // a real stats entry either way, whether their game just ended or is
+  // still in the 4th quarter). A small, single-week payload (~16 games),
+  // nothing like the size of the bulk stats/players endpoints.
+  var SCORES_BASE = "https://api.sleeper.app/scores/nfl";
+  var PLAYERS_URL = API_V1 + "/players/nfl";
+  var POLL_MS = 30000;
+  var MAX_RUMBLES_PER_WEEK = 20;
+  var RUMBLES_PER_WIN = 9;
+  // Player metadata (position/team/injury_status) is a multi-MB payload
+  // that rarely changes mid-session -- fetched once on load, then only
+  // re-fetched (at most this often) when a live QB-adjustment trigger is
+  // actually found and worth re-checking for a fresher injury_status.
+  var PLAYERS_REFRESH_COOLDOWN_MS = 90000;
+
+  var state = {
+    leagueId: null, // the pasted Sleeper league ID this page is currently showing, or null before one's entered
+    mode: "actual", // "actual" | "custom"
+    history: null, // built live from the league (see buildHistoryFromLeague)
+    historyError: null, // set when the league's data couldn't be loaded at all
+    live: null, // { week, season, isLive, byRoster: { roster_id: {score, oppScore, oppRosterId, h2hWin, rumbles} } }
+    liveError: null,
+    // { week, byRoster: { roster_id: [breakdown row, ...] } } -- the last
+    // COMPLETED week's real, final per-player breakdown (see
+    // loadLastWeekBreakdown), used ONLY for the "Pts Last Week" hover
+    // tooltip (Actual mode, target week not yet kicked off -- see
+    // showLastWeekPoints in buildCombinedStandings). null until loaded, or
+    // if there's no completed week yet at all this season. Refetched only
+    // when the most-recently-completed week actually changes (see
+    // loadLastWeekBreakdown's own cache check), not on every 30s poll --
+    // a past week's real stats never change.
+    lastWeek: null,
+    playersMeta: null, // player_id -> Sleeper player object, fetched once (see ensurePlayersMeta)
+    matchupColorByRosterId: {}, // roster_id -> this week's matchup name color (set by buildCombinedStandings)
+    thisWeekTooltipData: {}, // roster_id -> {showStartTime, rows} "Pts This Week" tooltip data (set by render(), read by the pts-tooltip show/toggle handlers)
+    timeSlotColorByLabel: {}, // "Mon 1pm" etc -> "var(--matchup-N)" (set by loadLive() via buildTimeSlotColors, read by thisWeekTooltip)
+    activePtsTooltipRosterId: null, // which roster's tooltip is currently showing (native touch/click toggle state), or null
+    refreshing: false,
+    pollTimer: null,
+    sort: { key: null, dir: "desc" }, // key: one of COLUMNS' keys, or null = natural standings order
+    // Once the user has clicked any column header to sort manually, mode
+    // switches (Actual <-> Projected) leave their chosen sort alone -- see
+    // setMode's DEFAULT_SORT_BY_MODE comment for what happens before that.
+    userSorted: false
+  };
+
+  var MODE_LABELS = { actual: "Actual", custom: "Projected" };
+
+  // Column metadata for sorting. "#" (rank) IS sortable like any other
+  // column -- clicking it just sorts by each team's fixed season standing
+  // (ascending = natural standings order, descending = reversed). What it
+  // never does is change based on some OTHER column being sorted -- see
+  // buildCombinedStandings' rank assignment, which happens once, before
+  // any user-triggered re-sort.
+  var COLUMNS = {
+    rank: { type: "number", label: "#" },
+    manager: { type: "string", label: "Manager" },
+    rumbles: { type: "number", label: "Rumbles" },
+    this_week: { type: "number", label: "This Week" },
+    this_week_points: { type: "number", label: "Pts This Week" },
+    rumble_pct: { type: "number", label: "Rumble %" },
+    pf: { type: "number", label: "PF" },
+    pa: { type: "number", label: "PA" },
+    h2h: { type: "record", label: "H2H", wKey: "h2h_w", lKey: "h2h_l" },
+    vs_field: { type: "record", label: "Vs. Field", wKey: "vs_field_w", lKey: "vs_field_l" }
+  };
+
+  var els = {
+    subtitle: document.getElementById("subtitle"),
+    statusDot: document.getElementById("status-dot"),
+    statusText: document.getElementById("status-text"),
+    updatedPill: document.getElementById("updated-pill"),
+    errorBanner: document.getElementById("error-banner"),
+    body: document.getElementById("standings-body"),
+    modeActual: document.getElementById("mode-actual"),
+    modeCustom: document.getElementById("mode-custom"),
+    refreshBtn: document.getElementById("refresh-btn"),
+    leagueIdInput: document.getElementById("league-id-input"),
+    leagueIdBtn: document.getElementById("league-id-btn"),
+    leagueIdError: document.getElementById("league-id-error"),
+    liveWeekLabel: document.getElementById("live-week-label"),
+    ptsTooltip: document.getElementById("pts-tooltip"),
+    howtoBtn: document.getElementById("howto-btn"),
+    howtoTooltip: document.getElementById("howto-tooltip"),
+    headerCells: {} // filled in by attachSortHandlers(): column key -> <th>
+  };
+
+  function num(v) { return typeof v === "number" && !isNaN(v) ? v : 0; }
+
+  function fetchJson(url) {
+    return fetch(url, { cache: "no-store" }).then(function (r) {
+      if (!r.ok) throw new Error(url + " -> HTTP " + r.status);
+      return r.json();
+    });
+  }
+
+  // Sleeper's bulk stats/projections endpoints return a JSON ARRAY of
+  // per-player entries shaped like:
+  //   { player_id: "12596", stats: { pts_ppr: 0.25, rec_yd: ..., ... }, week, team, opponent, ... }
+  // rather than a simple {player_id: statsObj} map. This converts that
+  // array into the player_id-keyed lookup the rest of this file expects,
+  // pulling the actual scoring categories out of each entry's nested
+  // "stats" object.
+  function arrayToPlayerMap(arr) {
+    var map = {};
+    if (!arr || !arr.length) return map;
+    arr.forEach(function (entry) {
+      if (entry && entry.player_id) {
+        map[entry.player_id] = entry.stats || {};
+      }
+    });
+    return map;
+  }
+
+  // ---- scoring helpers -----------------------------------------------
+
+  // REVERSED (see the investigation this note replaces): an earlier
+  // version of this file aliased scoring_settings' "kr_yd" (kick-return
+  // yardage, no def_ prefix) to a real, already-played DEFENSE's
+  // "def_kr_yd" actual-stats field, on the theory that Sleeper's real
+  // payload just used a differently-prefixed name for the same category
+  // and a naive key-by-key match was silently dropping it. That theory
+  // was wrong. A direct side-by-side check against Sleeper's own
+  // displayed matchup page -- multiple real, live team defenses,
+  // mid-Sunday -- found this alias was inflating EVERY defense's actual
+  // score by however many kick/punt-return yards their opponent racked
+  // up that game (0.04/yd, often 3-5+ points): e.g. Tampa Bay's real
+  // defense showed 8.39 on Sleeper's own site while this page, with the
+  // alias applied, computed 12.55 for the exact same moment -- and
+  // removing just the kr_yd credit (12.55 - 107*0.04 = 8.27) landed
+  // right back on Sleeper's real number. Green Bay's defense the same
+  // day confirmed it again (6.41 real vs. 9.97 with the alias vs. 6.25
+  // without it). So Sleeper's own scoring engine does NOT apply "kr_yd"
+  // to the team DEF slot at all -- it's exclusively an individual
+  // return-specialist category (a real player's own actual-stats payload
+  // already carries a literal "kr_yd" field with no alias needed; only
+  // the team DEFENSE entries use "def_kr_yd" instead, for an unrelated,
+  // not-separately-scored team stat). KEY_ALIASES is left as an empty,
+  // reusable mechanism rather than deleted outright -- TIER_SUM_KEYS
+  // below is the same kind of fix and IS still confirmed correct -- but
+  // nothing should be added back here without the same kind of direct,
+  // live, side-by-side confirmation this reversal is based on.
+  var KEY_ALIASES = {};
+
+  // A few scoring_settings keys are a single flat weight for a category
+  // that Sleeper's REAL ACTUAL stat payloads only expose pre-split into
+  // distance-tier fields (e.g. scoring_settings has a flat "fgmiss": -1,
+  // but a kicker's real post-game stat line never has a bare "fgmiss"
+  // field -- only "fgmiss_30_39", "fgmiss_40_49", etc). For these, sum
+  // every "<key>_..." tiered field present and apply the flat weight to
+  // that sum -- that's what a single flat weight across every tier means.
+  // Same isActual-only restriction as KEY_ALIASES above, for the same
+  // reason (unverified against real projection payloads -- and in
+  // practice no projection so far has ever carried any fgmiss_* field at
+  // all, so this has never actually fired on a projection, but the gate
+  // stays as a matter of not trusting what hasn't been checked).
+  // Deliberately a short, explicit safelist (not "try this for every
+  // unmatched key") so it can never accidentally sum an unrelated field
+  // that happens to share a prefix.
+  var TIER_SUM_KEYS = { fgmiss: true };
+
+  // Confirmed via a REAL, live side-by-side comparison against Sleeper's
+  // own displayed matchup page (mid-Sunday, Week 2, with a mix of
+  // still-pregame and in-progress starters): a still-pregame player's
+  // "bonus_fd_qb"/"bonus_fd_rb"/"bonus_fd_wr"/"bonus_fd_te" first-down
+  // bonus category is genuinely scored as 0 by Sleeper's own displayed
+  // number, not silently dropped by a bug here -- Sleeper's own pregame
+  // projection provider simply doesn't forecast it, and Sleeper's own
+  // frontend does NOT synthesize/derive one either. An earlier version of
+  // this file tried deriving "bonus_fd_<position>" from a still-pregame
+  // player's raw pass_fd/rush_fd/rec_fd counts (the same fields a real
+  // ACTUAL post-game stat line uses to arrive at its own precomputed
+  // bonus_fd_<position>) on the theory that Sleeper must be doing the
+  // same thing pregame. That theory tested out fine against one earlier
+  // spot check, but a follow-up live comparison (multiple still-pregame
+  // starters, screenshotted side by side against Sleeper's own matchup
+  // page) showed it was WRONG: for every still-pregame player checked,
+  // Sleeper's own displayed number matched this file's plain, undecorated
+  // dot product exactly, to the penny, and the derived-bonus version
+  // overshot it by 2-5+ points per player. So there is no derivation here
+  // -- a still-pregame player's first-down bonus is 0, matching Sleeper's
+  // own displayed behavior, full stop. (Sleeper's number for a player
+  // who's ALREADY started playing can still drift from a pure pregame
+  // projection for unrelated reasons -- once live, Sleeper appears to
+  // blend in an updated rest-of-game estimate rather than showing the
+  // frozen pregame number verbatim -- but that's a different, currently
+  // unmodeled effect, not this bonus category.)
+
+  // NOTE (known, currently-unfixed gap): scoring_settings' kicker
+  // "fgm_yds_over_30" bonus (extra credit per yard past 30 on a made FG)
+  // has no reliable source in either the actual-stats or projections
+  // payload -- they only expose a kicker's total made-FG yardage
+  // ("fgm_yds"), not the per-kick distance breakdown "yards over 30"
+  // needs, so it can't be derived without guessing. This category is
+  // silently scored as 0 for now. In practice this only shifts a kicker's
+  // total by a small fraction of a point (worth revisiting if kicker
+  // scores start looking consistently light once real games are in).
+  function dotProduct(statsObj, scoringSettings, isActual) {
+    if (!statsObj || !scoringSettings) return 0;
+    var total = 0;
+    for (var key in scoringSettings) {
+      if (!Object.prototype.hasOwnProperty.call(scoringSettings, key)) continue;
+      var weight = scoringSettings[key];
+      if (typeof weight !== "number") continue;
+      var val = statsObj[key];
+      if (typeof val !== "number" && isActual) {
+        var aliasKey = KEY_ALIASES[key];
+        if (aliasKey && typeof statsObj[aliasKey] === "number") {
+          val = statsObj[aliasKey];
+        } else if (TIER_SUM_KEYS[key]) {
+          var tierTotal = 0, sawTier = false;
+          var prefix = key + "_";
+          for (var sKey in statsObj) {
+            if (sKey.indexOf(prefix) === 0 && typeof statsObj[sKey] === "number") {
+              tierTotal += statsObj[sKey];
+              sawTier = true;
+            }
+          }
+          if (sawTier) val = tierTotal;
+        }
+      }
+      if (typeof val === "number") {
+        total += weight * val;
+      }
+    }
+    return total;
+  }
+
+  // A player's week is always scored by dot-producting a stat line
+  // against the league's real scoring_settings -- never Sleeper's generic
+  // "pts_ppr" field. (This league, like most leagues with custom rules,
+  // isn't standard PPR -- it uses first-down bonuses, tiered
+  // points-allowed/yards-allowed defense scoring, kicker distance
+  // bonuses, etc. Verified directly against Sleeper's own displayed
+  // matchup projection, live, for multiple still-pregame starters at
+  // once: summing a player's projected stat line through this exact
+  // formula reproduces Sleeper's own displayed number to the penny.
+  // Sleeper's "pts_ppr"/"pts_std" fields are a DIFFERENT, generic scoring
+  // system and will not match a league with custom scoring_settings.)
+  function scoreFrom(source, scoringSettings, isActual) {
+    if (!source) return 0;
+    return dotProduct(source, scoringSettings, isActual);
+  }
+
+  // A player currently in progress is blended: actual-so-far PLUS a
+  // DAMPENED share of their pregame projection for the game clock still
+  // remaining. The naive version of this (no dampening -- just
+  // actualPts + remainingFraction*pregameProjectionPts) was checked
+  // against Sleeper's own live-displayed "projected" number for real
+  // players across three separate Week 2 gameday reports, and it
+  // systematically OVERSHOT for every player already producing at or
+  // above a flat pace (worse the further ahead of pace they were running)
+  // -- exactly backwards from the very first version of this fix (flat
+  // pregame projection the whole time a game's in progress), which
+  // systematically UNDERSHOT the same way. Comparing two players in the
+  // exact same real game at the exact same clock reading (a receiver
+  // already at 78% of his full pregame projection by early in the 3rd
+  // quarter, versus a teammate at only 11% of his) made the pattern
+  // unmistakable: it's not the clock alone driving the gap -- it's
+  // specifically how far ahead of (or behind) a flat, uniform pace a
+  // player is already running. A player with zero production so far
+  // should keep essentially their full remaining-game projection; a
+  // player already running well ahead of pace should have that remaining
+  // share pulled down, since a real system would naturally regress an
+  // already-hot rate back toward the mean rather than keep extrapolating
+  // it forward at face value.
+  //
+  // dampening(pace) = FLOOR + (1-FLOOR)*exp(-K*pace), where pace =
+  // actualPointsSoFar / pregameProjectionPoints (0 when there's no
+  // projection to divide by, or genuinely 0 actual so far). FLOOR=0.40
+  // and K=1.10 were fit (least total absolute error) against 18 real
+  // players' live-displayed numbers gathered across three separate
+  // gameday reports -- average miss 0.23 points, about 6x tighter than
+  // the undampened version, and adding each new report's players barely
+  // moved the fit (the first 13-player fit, 0.45/1.25, already missed the
+  // next 5 players by only 0.23 on average with NO refitting at all) --
+  // a good sign this is a real, generalizing pattern rather than noise
+  // tuned to one specific sample. Leave-one-out cross-validation (refit
+  // with each of the 18 held out in turn) kept both parameters in a
+  // similar range and every held-out prediction within about half a
+  // point of the full fit. Even so, this IS fit to real examples, not a
+  // disclosed Sleeper formula (nothing about Sleeper's real blend is
+  // exposed by the public stats/projections/scores endpoints this page
+  // reads, so it can't be reproduced exactly -- see the first-down-bonus
+  // lesson above for why this page validates rather than guesses at an
+  // unverifiable extra factor). It should be revisited if a future
+  // gameday report shows it drifting.
+  var PACE_DAMPENING_FLOOR = 0.40;
+  var PACE_DAMPENING_K = 1.10;
+  // A follow-up gameday report added 16 more real data points, mostly
+  // deep in the 3rd/4th quarter, and this formula was consistently
+  // overshooting them -- but bucketing EVERY validated point (34 total)
+  // by which quarter it fell in, rather than treating
+  // remainingGameClockFraction as one continuous scale, found the miss
+  // wasn't spread evenly: Q1-Q3 points averaged a small, roughly
+  // symmetric miss (well under half a point, errors landing on both
+  // sides of zero), while every single one of 11 real Q4/OT points
+  // overshot, by 0.3-0.8 points each, with no exceptions. That's a clean
+  // enough split that a single global exponent on
+  // remainingGameClockFraction (tried first, to make the remaining-
+  // credit term shrink faster as the clock runs low, independent of
+  // pace) was tested and rejected -- it only ever made the Q1-Q3 fit
+  // worse without fully fixing Q4, because it was trying to smoothly
+  // interpolate between two ranges that don't actually share one shape.
+  // A SEPARATE set of constants specifically for Q4/OT, left otherwise
+  // identical, fit those 11 points about 4x tighter (0.13 average miss
+  // vs 0.53) while leaving the already-good Q1-Q3 fit completely
+  // untouched. Leave-one-out cross-validation on just the Q4/OT set held
+  // up too (refit constants stayed in a similar neighborhood each time,
+  // every held-out prediction within about a third of a point). This
+  // tracks with how football actually plays out late in games -- run-
+  // out-the-clock playcalling in a decided game, reduced roles once the
+  // outcome is settled, backups checking in -- game-flow effects that
+  // are specific to "how much of the game is left", not merely "how hot
+  // is this player running", and that apparently kick in sharply at the
+  // Q4 line rather than building up gradually through the whole game.
+  // remainingFraction()'s own math means a value at or below this
+  // threshold can only ever come from Q4 or OT (Q3 never produces
+  // anything below 0.25; OT's entire range, [0, 0.1429], sits inside it)
+  // -- so checking it directly, with no extra quarter-number plumbing,
+  // exactly identifies "Q4 or later".
+  var PACE_DAMPENING_Q4_THRESHOLD = 0.25;
+  var PACE_DAMPENING_FLOOR_Q4 = 0.15;
+  var PACE_DAMPENING_K_Q4 = 1.40;
+  // The same idea, at the OTHER end of the game: a real Week 2 report
+  // caught Jaxon Smith-Njigba scoring an 82-yard, first-play-of-the-game
+  // touchdown (15.20 actual off a 20.17 pregame projection, 11:08 still
+  // left in Q1 -- remainingFraction 0.9356) and Sleeper's own live
+  // "projected" number for him read 33.41, while this page -- still using
+  // the Q1-3 constants above -- showed 27.69, a 5.7-point undershoot.
+  // That's the same story as the Q4 finding above, just at the other end:
+  // the miss isn't really a function of pace alone, it's a function of
+  // how much of the game has actually happened yet to have SEEN that
+  // pace. A player at 75% of their full-game pregame projection after
+  // 3-4 real minutes of football is a tiny, extremely early sample --
+  // there's essentially all of the game still left for a normal share of
+  // production to arrive on top, so discounting the rest of their
+  // pregame projection nearly as hard as this page discounts a similarly-
+  // hot player deep in the 3rd quarter (who has already had most of a
+  // game to prove that pace out) was never justified. Q4 dampens hard
+  // because there's almost no game left for anything to average out or
+  // for a real trend to keep developing; Q1 barely dampens at all because
+  // the opposite is true -- there's essentially a full game left.
+  //
+  // A follow-up report a few minutes later added three more real points
+  // from the SAME early Sunday window: Jeremiyah Love (low pace, 0.70 off
+  // a 12.83 pregame proj) and Stefon Diggs (zero actual yet -- pace 0,
+  // where dampening is a no-op by construction: floor+(1-floor)*e^0 == 1
+  // no matter what floor/k are, so this point can't discriminate between
+  // constant choices at all, but it's a useful exact-match sanity check),
+  // PLUS a SECOND read on Smith-Njigba himself, re-checked a few minutes
+  // further into the same quarter (remainingFraction now 0.8447, pace
+  // essentially unchanged at ~0.7535 since he hadn't scored again).
+  // That second Smith-Njigba read is the important one: at virtually the
+  // SAME pace as the first read, Sleeper's own number had moved from
+  // implying ~0.96 dampening down to ~0.88 -- proof, not just noisy
+  // variance, that dampening keeps sliding down through Q1 as time
+  // passes even when pace itself hasn't changed. A flat, pace-only
+  // formula literally cannot reproduce two different dampening values at
+  // one fixed pace, so no single (floor, k) pair fit to Q1 can get both
+  // of Smith-Njigba's reads exactly right at once -- unlike Q4, which
+  // really did look like a clean step change, Q1 looks like a genuine
+  // continuous drift that this page's current per-quarter-bucket design
+  // can't fully represent. PACE_DAMPENING_FLOOR_Q1/K_Q1 below were
+  // refit (least squared error) across all four of these real points --
+  // Love and Diggs land almost exactly, and the fit deliberately splits
+  // the difference on the two Smith-Njigba reads (+0.7 / -0.7, bracketing
+  // both rather than nailing one and missing the other by more). Still
+  // only 4 points from 2 real games, well short of the Q4/OT constants'
+  // 11-point, cross-validated sample -- treat this as a better-informed
+  // estimate, not a settled fit, and worth replacing with an actually
+  // continuous (time-since-kickoff-aware) model once enough independent
+  // Q1 examples accumulate to fit one responsibly.
+  // remainingFraction()'s own math means a value strictly above this
+  // threshold can only ever come from Q1 (Q2 tops out at exactly 0.75) --
+  // same exact-partition logic as the Q4 threshold above, just at the
+  // other boundary.
+  var PACE_DAMPENING_Q1_THRESHOLD = 0.75;
+  var PACE_DAMPENING_FLOOR_Q1 = 0.90;
+  var PACE_DAMPENING_K_Q1 = 1.75;
+  function blendedProjection(actualPts, pregameProjPts, remainingFraction) {
+    if (remainingFraction <= 0) return actualPts;
+    var pace = pregameProjPts > 0 ? actualPts / pregameProjPts : 0;
+    if (pace < 0) pace = 0;
+    var floor, k;
+    if (remainingFraction > PACE_DAMPENING_Q1_THRESHOLD) {
+      floor = PACE_DAMPENING_FLOOR_Q1;
+      k = PACE_DAMPENING_K_Q1;
+    } else if (remainingFraction <= PACE_DAMPENING_Q4_THRESHOLD) {
+      floor = PACE_DAMPENING_FLOOR_Q4;
+      k = PACE_DAMPENING_K_Q4;
+    } else {
+      floor = PACE_DAMPENING_FLOOR;
+      k = PACE_DAMPENING_K;
+    }
+    var dampening = floor + (1 - floor) * Math.exp(-k * pace);
+    return actualPts + remainingFraction * pregameProjPts * dampening;
+  }
+
+  // Team defenses are a deliberate special case: once a defense's game has
+  // started AT ALL (in progress or complete), this page shows NO blended
+  // "rest of game" credit for them -- their proj is pinned to their actual-
+  // so-far, full stop, the same way a fully-complete player's is. A real
+  // gameday report flagged this directly ("defenses are never projected
+  // above their actual score"), and the one concrete DEF example checked
+  // against Sleeper's live matchup page backed it up exactly: a defense
+  // already at 13.09 actual, mid-game, showed a live "projected" number of
+  // 13.09 too -- not a penny more. Defense scoring is lumpy and discrete
+  // (turnovers, sacks, points-allowed tiers) in a way individual-player
+  // scoring isn't, so the smooth pace-dampened model above -- built and
+  // validated entirely on skill-position players -- apparently isn't how
+  // Sleeper treats a defense's remaining-game upside once it's already
+  // banked something. A defense that hasn't kicked off yet is untouched by
+  // this (remainingFraction is still 1, so it shows its normal pregame
+  // projection, same as any other still-pregame player).
+  function effectiveRemainingFraction(position, remainingFraction) {
+    if (position === "DEF" && remainingFraction < 1) return 0;
+    return remainingFraction;
+  }
+
+  // Two lenses on a player's week:
+  //   "actual" -- ONLY their actual banked stats. Never touches
+  //     projections -- legitimately 0 for anyone who hasn't played, or
+  //     whose box score is genuinely empty.
+  //   "custom" -- the Projected-tab lens. A still-pregame player scores off
+  //     Sleeper's pregame projection (blendedProjection() above reduces to
+  //     exactly that when remainingFraction=1 and actual=0); a fully-
+  //     complete player scores off their real stat line (remainingFraction
+  //     =0 reduces the same formula to just actualPts); and a player whose
+  //     game is currently IN PROGRESS gets the full pace-dampened blend.
+  //     See blendedProjection()'s comment for the formula, the validation
+  //     data, and why the dampening exists at all.
+  //
+  //     "unknown" (no team metadata for this player, or the live-status
+  //     feed failed/doesn't cover their team) falls back to the plain
+  //     has-actual-stats check, the safest signal available when game
+  //     status genuinely can't be resolved at all.
+  //
+  // Note "actual" mode is untouched by any of this -- it always shows a
+  // player's real banked stats once they exist, complete or not, which is
+  // correct there (the whole point of Actual mode is banked production so
+  // far). A player who's already played gets the actual-only
+  // KEY_ALIASES/TIER_SUM_KEYS treatment in EITHER mode once their game
+  // has gone final; a still-pregame player never does, and an in-progress
+  // player's actual-so-far portion of the blend above does too (only their
+  // projection portion skips it, since KEY_ALIASES/TIER_SUM_KEYS only ever
+  // makes sense against a real stat line).
+  function playerPoints(playerId, statsMap, projMap, scoringSettings, mode, playersMeta, teamGameSchedule) {
+    var actualSource = statsMap[playerId];
+    if (mode === "actual") {
+      return scoreFrom(actualSource, scoringSettings, true);
+    }
+    var meta = playersMeta ? playersMeta[playerId] : null;
+    var team = meta ? meta.team : null;
+    var game = (team && teamGameSchedule && teamGameSchedule[team]) || null;
+    if (!game) {
+      var isActual = !!actualSource;
+      var source = actualSource || projMap[playerId];
+      return scoreFrom(source, scoringSettings, isActual);
+    }
+    var actualPts = actualSource ? scoreFrom(actualSource, scoringSettings, true) : 0;
+    var pregameProj = scoreFrom(projMap[playerId], scoringSettings, false);
+    var remFrac = effectiveRemainingFraction(meta ? meta.position : null, game.remainingFraction);
+    return blendedProjection(actualPts, pregameProj, remFrac);
+  }
+
+  function rosterScore(roster, statsMap, projMap, scoringSettings, mode, playersMeta, teamGameSchedule) {
+    var starters = roster.starters || [];
+    var total = 0;
+    for (var i = 0; i < starters.length; i++) {
+      var pid = starters[i];
+      if (!pid || pid === "0") continue;
+      total += playerPoints(pid, statsMap, projMap, scoringSettings, mode, playersMeta, teamGameSchedule);
+    }
+    return total;
+  }
+
+  // Canonical display order for the "Points This Week" tooltip, by roster
+  // SLOT type (not by player position) -- this league's 10 starting slots
+  // are 2x Superflex, 2x RB, 2x WR/TE flex, 1x FLEX (RB/WR/TE), 1x TE, 1x K,
+  // 1x DEF. `roster.starters` is positionally aligned with
+  // `league.roster_positions` (starters[i] fills roster_positions[i]), but
+  // that raw order isn't guaranteed to match the order we want displayed,
+  // so buildPlayerBreakdown re-sorts every breakdown into this fixed order
+  // regardless of how Sleeper happens to store the slots. Sleeper's slot
+  // codes: SUPER_FLEX (Superflex/SFLEX), RB, REC_FLEX (WR/TE, "W/T"), FLEX
+  // (RB/WR/TE), TE, K, DEF. Anything unrecognized sorts to the end, after
+  // DEF, rather than being dropped.
+  var TOOLTIP_SLOT_ORDER = ["SUPER_FLEX", "RB", "REC_FLEX", "FLEX", "TE", "K", "DEF"];
+  function tooltipSlotRank(slot) {
+    var idx = TOOLTIP_SLOT_ORDER.indexOf(slot);
+    return idx === -1 ? TOOLTIP_SLOT_ORDER.length : idx;
+  }
+
+  // Per-starter breakdown for the "Points This Week" hover tooltip. Unlike
+  // rosterScore (which only needs a single summed total), the tooltip needs
+  // each starter's actual AND projected score side by side, plus whether
+  // they've actually taken the field yet -- so this is computed once,
+  // independent of the Actual/Projected toggle, and the toggle only changes
+  // how render() formats/filters these rows at display time.
+  //   - "actual" -- their real banked stats this week, exactly like
+  //     playerPoints(mode="actual"): 0 if their game hasn't started.
+  //   - "proj" -- Sleeper's RAW pregame projection, ALWAYS from projMap
+  //     regardless of whether they've already played and regardless of the
+  //     Projected-mode roster total's clock-blending (see playerPoints'
+  //     comment) -- so a bench-quality stat line from a hobbled starter can
+  //     still be compared against what was expected of them. Deliberately
+  //     left un-blended: for an in-progress player, "actual" + "proj" as
+  //     shown here will generally sum to MORE than that player's real
+  //     contribution to the Projected total, since the total only counts a
+  //     shrinking, time-remaining-weighted share of "proj" -- these two
+  //     columns are meant as the two raw inputs to inspect, not a preview
+  //     of the exact number being summed. This also deliberately does NOT
+  //     apply the isActual-only KEY_ALIASES/TIER_SUM_KEYS treatment
+  //     (scoreFrom's 3rd arg is false), matching how projections are
+  //     scored everywhere else in this file.
+  //   - "played" -- true once statsMap has a real entry for them, i.e.
+  //     their game has kicked off (matches the isActual check playerPoints
+  //     already uses to decide whether to trust actual stats over a
+  //     projection).
+  //   - "game_status" -- "pre_game" / "in_progress" / "complete" / "unknown"
+  //     (the last when their NFL team isn't in this week's schedule at
+  //     all, e.g. a bye, or the scores fetch failed) -- from Sleeper's own
+  //     live-scoreboard endpoint (see buildTeamGameSchedule below), used to
+  //     tell a fully-final game apart from one still being played, which
+  //     the stats/projections payloads alone can't distinguish.
+  //   - "game_start_ms" -- that same game's kickoff time (epoch ms, or null
+  //     if unknown) -- shown in the Projected tooltip so an upcoming
+  //     player's kickoff day/time is visible at a glance.
+
+  // The per-player computation at the heart of buildPlayerBreakdown below.
+  // Returns everything buildPlayerBreakdown's rows carry EXCEPT "slot" (only
+  // a roster starter has one -- see rosterPositions).
+  function computePlayerBreakdownEntry(pid, statsMap, projMap, scoringSettings, playersMeta, teamGameSchedule) {
+    var actualSource = statsMap[pid];
+    var played = !!actualSource;
+    var meta = playersMeta ? playersMeta[pid] : null;
+    var team = meta ? meta.team : null;
+    var game = (team && teamGameSchedule && teamGameSchedule[team]) || null;
+    var actualPts = played ? scoreFrom(actualSource, scoringSettings, true) : 0;
+    var pregameProjPts = scoreFrom(projMap[pid], scoringSettings, false);
+    // "proj" shows the SAME number Projected mode actually sums for this
+    // player (see playerPoints/blendedProjection): their plain pregame
+    // projection while their game hasn't started, their real stat line
+    // once it's confirmed complete, and a pace-dampened blend of both
+    // while it's in progress -- this page's best estimate of Sleeper's
+    // own live "projected" number, not a reproduction of it (see
+    // blendedProjection's comment for how close that estimate actually
+    // gets, validated against real examples). A player whose game status
+    // is "unknown" (no team metadata, or the live-status feed failed)
+    // has no remainingFraction to blend with, so this just shows their
+    // raw pregame projection, same as before this blending model existed.
+    // A team defense also skips the blend once its game has started at
+    // all (see effectiveRemainingFraction's comment) -- its proj is
+    // pinned to its actual-so-far, not a penny more.
+    var projRemFrac = game ? effectiveRemainingFraction(meta ? meta.position : null, game.remainingFraction) : null;
+    var projPts = game ? blendedProjection(actualPts, pregameProjPts, projRemFrac) : pregameProjPts;
+    return {
+      player_id: pid,
+      name: meta ? playerName(meta) : pid,
+      actual: round2(actualPts),
+      proj: round2(projPts),
+      played: played,
+      game_status: (game && game.status) || "unknown",
+      game_start_ms: (game && game.startTimeMs) || null
+    };
+  }
+
+  function buildPlayerBreakdown(roster, statsMap, projMap, scoringSettings, playersMeta, teamGameSchedule, rosterPositions) {
+    var starters = roster.starters || [];
+    var slots = rosterPositions || [];
+    var out = [];
+    for (var i = 0; i < starters.length; i++) {
+      var pid = starters[i];
+      if (!pid || pid === "0") continue;
+      var entry = computePlayerBreakdownEntry(pid, statsMap, projMap, scoringSettings, playersMeta, teamGameSchedule);
+      entry.slot = slots[i] || null;
+      out.push(entry);
+    }
+    // Stable sort -- ties (e.g. the two RB slots) keep their original
+    // relative order, only the slot GROUPS get reordered.
+    out.sort(function (a, b) { return tooltipSlotRank(a.slot) - tooltipSlotRank(b.slot); });
+    return out;
+  }
+
+  // Normalizes one entry from Sleeper's /scores/nfl/{season_type}/{season}/{week}
+  // feed down to "pre_game" | "in_progress" | "complete". The real payload
+  // (confirmed live, Sep 2026) nests the authoritative booleans under
+  // "metadata": is_over === true means the game has gone final, and
+  // is_in_progress === true means it's live -- those are checked first.
+  // A top-level "status" string (e.g. "pre_game") and a legacy
+  // "quarter": "F" shape are kept as fallbacks in case a future payload
+  // omits metadata, since getting this wrong in the "still counts as
+  // complete" direction would silently hide a player from the Projected
+  // tooltip whose game hasn't actually ended yet.
+  //
+  // BUG FOUND AND FIXED (live, Sep 20 2026): a weather-delayed TB @ CLE
+  // game sat with BOTH is_over=false AND is_in_progress=false while it was
+  // genuinely mid-4th-quarter (quarter_num: 4, time_remaining: "2:33") --
+  // Sleeper's top-level "status" for it was "suspended", which matched
+  // none of the string checks below and fell all the way through to the
+  // "pre_game" default. That silently zeroed effectiveRemainingFraction's
+  // "already in progress" signal AND fed remainingFraction=1 (full game
+  // still ahead) into blendedProjection, so every TB/CLE starter who'd
+  // already banked real production got a full, undampened pregame
+  // projection stacked ON TOP of their actual points -- confirmed against
+  // real rosters live: one manager's Projected total was inflated by
+  // +11.38 (a kicker alone went 17.60 actual + 8.41 full pregame proj =
+  // 21.47 instead of ~17.67; that same team's DEF, which should have been
+  // pinned to its 5.42 actual by the DEF cap below, wasn't capped at all
+  // and read 13.00), and several other rosters across the league were off
+  // by 6-10 points the same way -- all from two teams' worth of players.
+  // Recomputing with the fix landed within a few hundredths of a point of
+  // Sleeper's own displayed live projections for the affected teams.
+  //
+  // The fix: a game whose quarter_num parses to >= 1 has demonstrably
+  // kicked off (a truly pre-game entry's quarter_num is "", not a number)
+  // even when neither boolean is set and the status string is something
+  // unanticipated ("suspended", or any future synonym for "paused mid-
+  // game" -- weather delays, lightning holds, whatever Sleeper's feed
+  // calls the next one). Falling back to "in_progress" in that case routes
+  // through remainingFraction()'s normal clock-derived estimate instead of
+  // silently double-counting, exactly like any other still-developing
+  // game -- there is deliberately no separate "suspended" status of its
+  // own, since a paused game is still, functionally, a game in progress.
+  function normalizeGameStatus(game) {
+    var meta = (game && game.metadata) || {};
+    if (meta.is_over === true) return "complete";
+    if (meta.is_in_progress === true) return "in_progress";
+
+    var status = ((game && game.status) || "").toLowerCase();
+    if (status.indexOf("final") !== -1 || status === "complete" || status === "post_game" || (game && game.quarter === "F") || meta.quarter === "F") {
+      return "complete";
+    }
+    if (status.indexOf("progress") !== -1 || status === "halftime" || status === "live" || status === "in_game") {
+      return "in_progress";
+    }
+    var qNum = parseInt(meta.quarter_num, 10);
+    if (qNum >= 1) return "in_progress";
+    return "pre_game";
+  }
+
+  // Estimates the fraction of the 60-minute game clock still remaining for
+  // an in-progress game, from Sleeper's live-scoreboard "quarter_num" (1-4,
+  // 5+ for OT) and "time_remaining" ("M:SS"/"MM:SS") fields -- both
+  // confirmed present on the real live payload, Sep 2026. Regulation
+  // quarters are 15 minutes each. Returns 1 (treat as the full game still
+  // ahead) when quarter_num can't be parsed, and always clamps to [0, 1].
+  //
+  // OVERTIME IS A HARD 0, not a 10-minute-period estimate -- confirmed
+  // live (a real Week 2 game, Garrett Wilson's, reached OT): Sleeper's own
+  // displayed "projected" number for every player in that game sat
+  // exactly on their actual-so-far the moment OT started, no extra credit
+  // for the OT period at all, matching how this page already treats a
+  // confirmed-COMPLETE game (see blendedProjection's `remainingFraction
+  // <= 0` early return -- returning 0 here routes an OT game through that
+  // exact same path, no separate OT branch needed anywhere else). This
+  // replaces an earlier version that modeled OT as one more 10-minute
+  // period tacked onto the 60-minute regulation clock and blended a
+  // (small) share of the pregame projection back in -- reasonable-
+  // sounding, but not what Sleeper's real site actually does, the same
+  // kind of guess-vs-verify mistake KEY_ALIASES's kr_yd entry made
+  // elsewhere on this page. A team already in OT is functionally decided
+  // for fantasy purposes anyway (a sudden-death score ends the game
+  // immediately), so there's very little practical upside being given up
+  // here, and it removes a case that was never actually validated against
+  // a real example until now.
+  function remainingFraction(meta) {
+    var qNum = parseInt(meta && meta.quarter_num, 10);
+    if (!qNum || qNum < 1) return 1;
+    if (qNum >= 5) return 0;
+    var elapsedPriorQuarters = (qNum - 1) * 15;
+    var remMin = 15;
+    var remStr = meta && meta.time_remaining;
+    if (typeof remStr === "string" && remStr.indexOf(":") !== -1) {
+      var parts = remStr.split(":");
+      var mm = parseInt(parts[0], 10);
+      var ss = parseInt(parts[1], 10);
+      if (!isNaN(mm) && !isNaN(ss)) remMin = mm + ss / 60;
+    }
+    var elapsedTotal = elapsedPriorQuarters + (15 - remMin);
+    var frac = 1 - elapsedTotal / 60;
+    if (frac < 0) frac = 0;
+    if (frac > 1) frac = 1;
+    return frac;
+  }
+
+  // Per-team {status, startTimeMs, remainingFraction} lookup built from
+  // Sleeper's live-scoreboard feed. startTimeMs prefers the top-level
+  // "start_time" epoch-ms field (confirmed live, Sep 2026); metadata.date_time
+  // (an ISO string) is a fallback for a payload shape that omits it.
+  // remainingFraction is 1 for a game that hasn't kicked off (the full game
+  // is still "ahead"), 0 for one that's confirmed complete (nothing left to
+  // blend in), and the live clock-derived estimate (see remainingFraction()
+  // above) while a game is in progress -- see playerPoints' comment for how
+  // this gets used to blend actual-so-far with pregame projection.
+  function buildTeamGameSchedule(games) {
+    var map = {};
+    (games || []).forEach(function (g) {
+      if (!g) return;
+      var meta = g.metadata || {};
+      var status = normalizeGameStatus(g);
+      var startTimeMs = null;
+      if (typeof g.start_time === "number") {
+        startTimeMs = g.start_time;
+      } else if (meta.date_time || g.date_time) {
+        var parsed = new Date(meta.date_time || g.date_time).getTime();
+        if (!isNaN(parsed)) startTimeMs = parsed;
+      }
+      var remFrac = status === "complete" ? 0 : (status === "in_progress" ? remainingFraction(meta) : 1);
+      var entry = { status: status, startTimeMs: startTimeMs, remainingFraction: remFrac };
+      var away = meta.away_team || g.away_team;
+      var home = meta.home_team || g.home_team;
+      if (away) map[away] = entry;
+      if (home) map[home] = entry;
+    });
+    return map;
+  }
+
+  // Distinguishes "matchups are posted for this week" (the existing
+  // isLive/liveActive meaning -- Sleeper typically posts a week's matchups
+  // several days before its first kickoff) from "this week has actually
+  // KICKED OFF" -- the two are NOT the same moment, and the standings page
+  // used to conflate them: as soon as matchups posted, Projected mode
+  // would fold hypothetical, nothing-has-happened-yet projected numbers
+  // into the season's PF/PA/Rumbles/H2H totals, and the "Points This Week"
+  // LIVE badge could show before a single snap had been played. This
+  // computes the real answer from the same live-scoreboard feed
+  // buildTeamGameSchedule already reads: `hasKickedOff` is true once ANY
+  // game in the week is no longer "pre_game" (see normalizeGameStatus),
+  // with a current-time-vs-kickoff fallback in case the feed's status
+  // fields haven't flipped yet at the exact moment a game starts.
+  // `firstGameStartMs` is the earliest known kickoff in the week (used for
+  // the "Week N begins <day> <time>" pregame status text) -- null if no
+  // game in the feed has a resolvable start time.
+  function computeWeekKickoffInfo(games) {
+    var earliestStartMs = null;
+    var anyStarted = false;
+    (games || []).forEach(function (g) {
+      if (!g) return;
+      if (normalizeGameStatus(g) !== "pre_game") anyStarted = true;
+      var meta = g.metadata || {};
+      var ms = null;
+      if (typeof g.start_time === "number") {
+        ms = g.start_time;
+      } else if (meta.date_time || g.date_time) {
+        var parsed = new Date(meta.date_time || g.date_time).getTime();
+        if (!isNaN(parsed)) ms = parsed;
+      }
+      if (typeof ms === "number" && !isNaN(ms) && (earliestStartMs === null || ms < earliestStartMs)) {
+        earliestStartMs = ms;
+      }
+    });
+    var hasKickedOff = anyStarted || (earliestStartMs !== null && Date.now() >= earliestStartMs);
+    return { hasKickedOff: hasKickedOff, firstGameStartMs: earliestStartMs };
+  }
+
+  function round2(n) { return Math.round(n * 100) / 100; }
+
+  function playerName(meta) {
+    if (!meta) return "Unknown";
+    if (meta.full_name) return meta.full_name;
+    var name = ((meta.first_name || "") + " " + (meta.last_name || "")).trim();
+    return name || "Unknown";
+  }
+
+  function fetchPlayersMeta() {
+    return fetchJson(PLAYERS_URL).then(function (data) {
+      state.playersMeta = data || {};
+      return state.playersMeta;
+    });
+  }
+
+  // Fetch once if we've never fetched at all; otherwise reuse the cached
+  // copy -- this is a multi-MB payload that rarely changes mid-session, so
+  // it's only ever paid for once per page load, not on every 30s poll.
+  function ensurePlayersMeta() {
+    if (state.playersMeta) return Promise.resolve(state.playersMeta);
+    return fetchPlayersMeta().catch(function (err) {
+      console.warn("[rumbles] couldn't load player metadata:", err);
+      return state.playersMeta || {};
+    });
+  }
+
+  // Same "9 for the H2H win, +1 per team outscored" math as build_rumbles.py,
+  // applied to whatever scores we have (live or final).
+  function computeRumblesForWeek(scoresByRoster, pairsByMatchupId) {
+    var out = {};
+    var allIds = Object.keys(scoresByRoster);
+
+    allIds.forEach(function (rid) {
+      out[rid] = {
+        points: scoresByRoster[rid],
+        opponentRosterId: null,
+        opponentPoints: null,
+        h2hWin: null,
+        teamsOutscored: 0,
+        teamsOutscoredBy: 0,
+        rumbles: 0
+      };
+    });
+
+    Object.keys(pairsByMatchupId).forEach(function (mid) {
+      var pair = pairsByMatchupId[mid];
+      if (pair.length !== 2) return;
+      var a = pair[0], b = pair[1];
+      var pa = scoresByRoster[a], pb = scoresByRoster[b];
+      out[a].opponentRosterId = b;
+      out[a].opponentPoints = pb;
+      out[a].h2hWin = pa > pb;
+      out[b].opponentRosterId = a;
+      out[b].opponentPoints = pa;
+      out[b].h2hWin = pb > pa;
+    });
+
+    allIds.forEach(function (rid) {
+      var my = scoresByRoster[rid];
+      var outscored = 0, outscoredBy = 0;
+      allIds.forEach(function (other) {
+        if (other === rid) return;
+        if (my > scoresByRoster[other]) outscored++;
+        else if (scoresByRoster[other] > my) outscoredBy++;
+      });
+      out[rid].teamsOutscored = outscored;
+      out[rid].teamsOutscoredBy = outscoredBy;
+      out[rid].rumbles = outscored + (out[rid].h2hWin ? RUMBLES_PER_WIN : 0);
+    });
+
+    return out;
+  }
+
+  // ---- data loading ----------------------------------------------------
+
+  function officialPointsJs(m) {
+    var custom = m.custom_points;
+    if (custom !== null && custom !== undefined) return custom;
+    return m.points || 0;
+  }
+
+  // Wraps computeRumblesForWeek (already used for the live in-progress
+  // week) to score one COMPLETED historical week from raw
+  // /matchups/{week} data, converting its camelCase output into the same
+  // snake_case shape rumbles_history.json used to ship
+  // (opponent_roster_id, h2h_win, teams_outscored, ...) -- the shape
+  // computeH2hStreak and every other history.weekly[w][rid] reader in
+  // this file already expects.
+  function scoreHistoricalWeek(matchups) {
+    var scoresByRoster = {};
+    var pairsByMatchupId = {};
+    matchups.forEach(function (m) {
+      var rid = m.roster_id;
+      scoresByRoster[rid] = officialPointsJs(m);
+      var mid = m.matchup_id;
+      if (mid !== undefined && mid !== null) {
+        if (!pairsByMatchupId[mid]) pairsByMatchupId[mid] = [];
+        pairsByMatchupId[mid].push(rid);
+      }
+    });
+    var raw = computeRumblesForWeek(scoresByRoster, pairsByMatchupId);
+    var out = {};
+    Object.keys(raw).forEach(function (rid) {
+      var r = raw[rid];
+      out[rid] = {
+        points: r.points,
+        opponent_roster_id: r.opponentRosterId,
+        opponent_points: r.opponentPoints,
+        h2h_win: r.h2hWin,
+        teams_outscored: r.teamsOutscored,
+        teams_outscored_by: r.teamsOutscoredBy,
+        rumbles: r.rumbles
+      };
+    });
+    return out;
+  }
+
+  function round1(n) { return Math.round(n * 10) / 10; }
+
+  // roster_id -> Sleeper username, for the Base version. Unlike
+  // build_rumbles.py's build_manager_map, this deliberately skips
+  // DISPLAY_NAME_OVERRIDES (a private, per-league cosmetic map that
+  // wouldn't make sense applied to an arbitrary public league) -- every
+  // manager name shown here is simply the person's own raw Sleeper
+  // display_name.
+  function buildManagerMapJs(users, rosters) {
+    var userById = {};
+    (users || []).forEach(function (u) { userById[u.user_id] = u; });
+    var out = {};
+    (rosters || []).forEach(function (r) {
+      var u = userById[r.owner_id] || {};
+      out[r.roster_id] = u.display_name || ("Roster " + r.roster_id);
+    });
+    return out;
+  }
+
+  // Fetches everything needed to build a from-scratch "history" object for
+  // an arbitrary Sleeper league_id -- the Base version's whole reason for
+  // being: unlike the private DTF Club version, there's no build_rumbles.py
+  // running server-side once a day to pre-bake rumbles_history.json, so
+  // this walks every already-COMPLETED week of the CURRENT season live,
+  // entirely in the browser, using exactly the same Rumbles math (see
+  // scoreHistoricalWeek/computeRumblesForWeek above). Only ever called once
+  // per pasted league ID (see loadLeague) -- after that, loadLive's own 30s
+  // poll only re-fetches the in-progress week, not this whole history
+  // again.
+  function buildHistoryFromLeague(leagueId) {
+    return fetchJson(API_V1 + "/league/" + leagueId).then(function (league) {
+      if (!league || !league.league_id) {
+        throw new Error("That doesn't look like a valid Sleeper league ID.");
+      }
+      var season = league.season;
+      // last_scored_leg is Sleeper's own per-league "most recently FULLY
+      // SCORED week" pointer -- a more robust, self-contained signal than
+      // the original DTF-Club version's state.week-based heuristic (which
+      // existed specifically to work around a once-daily server cron
+      // lagging behind rumbles_history.json -- there's no such cron here,
+      // so there's nothing to work around). Falls back to 0 (no completed
+      // weeks yet) for a league that hasn't started scoring at all --
+      // pre_draft/drafting leagues, or a brand-new regular season.
+      var completedThrough = num(league.settings && league.settings.last_scored_leg);
+      var completedWeeks = [];
+      for (var w = 1; w <= completedThrough; w++) completedWeeks.push(w);
+
+      return Promise.all([
+        fetchJson(API_V1 + "/league/" + leagueId + "/users"),
+        fetchJson(API_V1 + "/league/" + leagueId + "/rosters")
+      ]).then(function (results) {
+        var users = results[0] || [];
+        var rosters = results[1] || [];
+        var managerMap = buildManagerMapJs(users, rosters);
+
+        var weekly = {};
+        var cumulative = {};
+        Object.keys(managerMap).forEach(function (rid) {
+          cumulative[rid] = { rumbles: 0, pf: 0, pa: 0, h2h_w: 0, h2h_l: 0, vs_field_w: 0, vs_field_l: 0 };
+        });
+
+        // Weeks are fetched strictly in order, one at a time (rather than
+        // Promise.all'd) so a single flaky request doesn't leave weekly/
+        // cumulative half-built out of order -- there's no live poll
+        // racing this, so there's no latency reason to parallelize it.
+        function loadWeek(i) {
+          if (i >= completedWeeks.length) return Promise.resolve();
+          var week = completedWeeks[i];
+          return fetchJson(API_V1 + "/league/" + leagueId + "/matchups/" + week).then(function (matchups) {
+            if (matchups && matchups.length) {
+              var weekResult = scoreHistoricalWeek(matchups);
+              weekly[String(week)] = weekResult;
+              Object.keys(weekResult).forEach(function (rid) {
+                if (!cumulative[rid]) return;
+                var info = weekResult[rid];
+                var c = cumulative[rid];
+                c.rumbles += info.rumbles;
+                c.pf += info.points;
+                if (info.opponent_points !== null) c.pa += info.opponent_points;
+                if (info.h2h_win === true) c.h2h_w++;
+                else if (info.h2h_win === false) c.h2h_l++;
+                c.vs_field_w += info.teams_outscored;
+                c.vs_field_l += info.teams_outscored_by;
+              });
+            }
+            return loadWeek(i + 1);
+          });
+        }
+
+        return loadWeek(0).then(function () {
+          var weeksPlayed = completedWeeks.length;
+          var maxPossible = weeksPlayed * MAX_RUMBLES_PER_WEEK;
+          var lastWeekKey = completedWeeks.length ? String(completedWeeks[completedWeeks.length - 1]) : null;
+
+          var standings = Object.keys(cumulative).map(function (rid) {
+            var c = cumulative[rid];
+            var lastWeekInfo = (lastWeekKey && weekly[lastWeekKey] && weekly[lastWeekKey][rid]) || {};
+            return {
+              roster_id: Number(rid),
+              manager: managerMap[rid] || ("Roster " + rid),
+              rumbles: c.rumbles,
+              rumble_pct: maxPossible ? round1((c.rumbles / maxPossible) * 100) : 0,
+              last_completed_week_rumbles: num(lastWeekInfo.rumbles),
+              last_completed_week_points: round2(num(lastWeekInfo.points)),
+              pf: round2(c.pf),
+              pa: round2(c.pa),
+              h2h_w: c.h2h_w,
+              h2h_l: c.h2h_l,
+              vs_field_w: c.vs_field_w,
+              vs_field_l: c.vs_field_l
+            };
+          });
+          standings.sort(function (a, b) { return (b.rumbles - a.rumbles) || (b.pf - a.pf); });
+          standings.forEach(function (s, i) { s.rank = i + 1; });
+
+          state.history = {
+            season: season,
+            league_id: leagueId,
+            league_name: league.name || null,
+            weeks_completed: completedWeeks,
+            max_rumbles_per_week: MAX_RUMBLES_PER_WEEK,
+            standings: standings,
+            weekly: weekly
+          };
+        });
+      });
+    });
+  }
+
+  // Loads (or reloads) the whole page for a freshly-pasted Sleeper league
+  // ID -- the Base version's entry point, replacing the old
+  // loadHistory().then(loadLive) boot chain (which always pointed at this
+  // page's own bundled rumbles_history.json for a single, fixed league).
+  function loadLeague(leagueId) {
+    state.leagueId = leagueId;
+    state.historyError = null;
+    state.history = null;
+    state.live = null;
+    state.lastWeek = null;
+    render();
+    return buildHistoryFromLeague(leagueId)
+      .then(function () { return loadLive(); })
+      .then(function () { render(); })
+      .catch(function (err) {
+        console.warn("[rumbles] couldn't load that league:", err);
+        state.historyError = err;
+        render();
+      });
+  }
+
+  // Loads the last COMPLETED week's real, final per-roster player
+  // breakdown -- used ONLY by the "Pts Last Week" hover tooltip (Actual
+  // mode, once the target week hasn't kicked off yet -- see
+  // showLastWeekPoints in buildCombinedStandings). Unlike loadLive's own
+  // targetWeek fetch, this is always a week that's already fully final, so
+  // there's no live-scoreboard fetch. Best-effort and NEVER rejects -- a
+  // failure here must never break the main live/standings flow; it just
+  // means "Pts Last Week" falls back to showing no tooltip at all. Cached
+  // by week: a past week's real stats never change, so this only actually
+  // fetches once per newly-completed week, not on every 30s poll.
+  function loadLastWeekBreakdown(season, seasonType, leagueId, lastWeek) {
+    if (!lastWeek || lastWeek < 1 || !leagueId) {
+      state.lastWeek = null;
+      return Promise.resolve();
+    }
+    if (state.lastWeek && state.lastWeek.week === lastWeek) {
+      return Promise.resolve(); // already cached -- a completed week's stats don't change
+    }
+    var seasonTypeParam = "?season_type=" + encodeURIComponent(seasonType);
+    return Promise.all([
+      fetchJson(API_V1 + "/league/" + leagueId + "/matchups/" + lastWeek).catch(function () { return []; }),
+      fetchJson(STATS_BASE + "/" + season + "/" + lastWeek + seasonTypeParam).catch(function () { return []; }),
+      fetchJson(API_V1 + "/league/" + leagueId).catch(function () { return null; }),
+      ensurePlayersMeta(),
+      // Sleeper still serves a past week's REAL pregame projections at this
+      // same endpoint (confirmed live: /projections/nfl/2026/2 still
+      // returns week 2's real pregame numbers after week 2 finished) --
+      // used below to show "Pts Last Week"'s tooltip actual-vs-pregame-
+      // projection DIFFERENCE (see thisWeekTooltip's isLastWeek branch)
+      // instead of just restating the actual total a second time. Collapsed
+      // to [] on any failure, same as every other best-effort fetch here --
+      // projectionsAvailable below is what tells the tooltip to fall back
+      // to hiding the column entirely rather than showing a misleading
+      // all-zero diff if this ever comes back empty.
+      fetchJson(PROJECTIONS_BASE + "/" + season + "/" + lastWeek + seasonTypeParam).catch(function () { return []; })
+    ]).then(function (results) {
+      var matchups = results[0] || [];
+      var statsMap = arrayToPlayerMap(results[1]);
+      var league = results[2] || {};
+      var playersMeta = results[3] || {};
+      var projectionsRaw = results[4] || [];
+      var projectionsAvailable = projectionsRaw.length > 0;
+      // pregameProjMap deliberately falls back to statsMap (proj==actual,
+      // the old behavior) when Sleeper's projections feed came back empty --
+      // the tooltip itself won't actually show that number in that case
+      // (see projectionsAvailable/showProjColumn), but this keeps every
+      // downstream computePlayerBreakdownEntry call safe either way rather
+      // than needing its own separate empty-map special case.
+      var pregameProjMap = projectionsAvailable ? arrayToPlayerMap(projectionsRaw) : statsMap;
+      if (!matchups.length) {
+        state.lastWeek = { week: lastWeek, byRoster: {}, projectionsAvailable: projectionsAvailable };
+        return;
+      }
+      var scoringSettings = league.scoring_settings || {};
+      var rosterPositions = league.roster_positions || [];
+
+      // statsMap is passed as the ACTUAL source below, same as always;
+      // pregameProjMap (real pregame projections, or statsMap itself as a
+      // last-resort fallback -- see above) is passed as the PROJ source.
+      // teamGameSchedule is still {} (there's no live-scoreboard feed for
+      // an already-finished week), which is exactly what makes
+      // computePlayerBreakdownEntry treat `game` as null and skip its
+      // blendedProjection collapse -- so "proj" here lands on the real,
+      // untouched pregame number rather than being pulled toward "actual"
+      // the way an in-progress player's blended estimate would be.
+      var byRoster = {};
+      matchups.forEach(function (m) {
+        var rid = m.roster_id;
+        byRoster[rid] = buildPlayerBreakdown(m, statsMap, pregameProjMap, scoringSettings, playersMeta, {}, rosterPositions);
+      });
+      state.lastWeek = {
+        week: lastWeek,
+        byRoster: byRoster,
+        projectionsAvailable: projectionsAvailable
+      };
+    }).catch(function (err) {
+      console.warn("[rumbles] couldn't load last week's player breakdown for the 'Pts Last Week' tooltip:", err);
+      state.lastWeek = null;
+    });
+  }
+
+  function loadLive() {
+    state.liveError = null;
+    var lastWeekPromise = Promise.resolve();
+    return fetchJson(API_V1 + "/state/nfl")
+      .then(function (nflState) {
+        var season = nflState.season;
+        // nflState.week is deliberately NOT used to pick which week this
+        // page tracks live -- see targetWeek's own comment below for why.
+        var seasonType = nflState.season_type; // "pre" | "regular" | "post" | "off"
+        var historyWeeksDone = (state.history && state.history.weeks_completed) || [];
+        var maxCompleted = historyWeeksDone.length ? Math.max.apply(null, historyWeeksDone) : 0;
+        var leagueIdForLastWeek = (state.history && state.history.league_id) || null;
+        // Kicked off here, in parallel with everything below -- maxCompleted
+        // (the last COMPLETED week) is already known at this point and
+        // never depends on targetWeek/eligible/whether THIS week's own
+        // matchups have posted, so there's no reason to wait for any of
+        // that first. Joined back in at the very end of this function (see
+        // the final .then() below) so callers awaiting loadLive() also see
+        // state.lastWeek populated by the time render() runs.
+        lastWeekPromise = loadLastWeekBreakdown(season, seasonType, leagueIdForLastWeek, maxCompleted);
+
+        // Sleeper's own "current week" pointer (state.week) is NOT a
+        // reliable signal for which week this page should be live-
+        // tracking, in EITHER direction -- it can lag behind (there's a gap
+        // between Monday night's final whistle and whenever Sleeper flips
+        // it forward, sometimes not until close to Thursday kickoff of the
+        // next week), or it can jump ahead of what this page has itself
+        // marked "completed" (state.history.weeks_completed, set once when
+        // this league was loaded -- see buildHistoryFromLeague), if
+        // Sleeper's pointer advances between that initial load and now.
+        // Blending Sleeper's own pointer in here (rather than deriving
+        // targetWeek purely from maxCompleted) risks jumping straight past
+        // a week that just finished but hasn't been folded into
+        // state.history yet -- freshly-finished, not yet in history, with
+        // its own actual/projected totals still needing real data.
+        //
+        // The fix: always target the single week right after whatever this
+        // page has itself already marked completed (maxCompleted + 1), full
+        // stop -- never blended with or overridden by Sleeper's own
+        // pointer. This keeps live-tracking a week for its ENTIRE
+        // post-completion gap -- through games ending, right up until this
+        // league's own last_scored_leg catches up on the NEXT full reload
+        // -- rather than abandoning it early just because Sleeper's own
+        // bookkeeping moved on first.
+        var targetWeek = maxCompleted + 1;
+        // targetWeek can never itself already be in historyWeeksDone (it's
+        // defined as one past the max of that very list), so the only
+        // remaining gate is season type -- no live tracking during the
+        // preseason or offseason, regardless of what targetWeek computes to.
+        var eligible = seasonType !== "pre" && seasonType !== "off";
+
+        if (!eligible) {
+          state.live = { week: targetWeek, season: season, seasonType: seasonType, isLive: false, byRoster: {}, hasKickedOff: false, firstGameStartMs: null };
+          return null;
+        }
+
+        var leagueId = (state.history && state.history.league_id) || null;
+        if (!leagueId) {
+          state.live = { week: targetWeek, season: season, seasonType: seasonType, isLive: false, byRoster: {}, hasKickedOff: false, firstGameStartMs: null };
+          return null;
+        }
+
+        // The bulk stats/projections endpoints 400 without a season_type
+        // query param, and -- unlike a simple {player_id: stats} map --
+        // they return a JSON ARRAY of objects shaped like
+        // {player_id, stats: {...}, week, team, opponent, ...}. See
+        // arrayToPlayerMap below for the conversion into the lookup map
+        // the rest of this code expects.
+        var seasonTypeParam = "?season_type=" + encodeURIComponent(seasonType);
+        return Promise.all([
+          fetchJson(API_V1 + "/league/" + leagueId),
+          fetchJson(API_V1 + "/league/" + leagueId + "/matchups/" + targetWeek),
+          fetchJson(STATS_BASE + "/" + season + "/" + targetWeek + seasonTypeParam).catch(function () { return []; }),
+          fetchJson(PROJECTIONS_BASE + "/" + season + "/" + targetWeek + seasonTypeParam).catch(function () { return []; }),
+          // Best-effort -- see SCORES_BASE's comment. Never allowed to
+          // block the rest of live scoring if it 404s/errors; the
+          // tooltip just falls back to "unknown" game status for
+          // everyone (still shown, never wrongly hidden) if this fails.
+          fetchJson(SCORES_BASE + "/" + seasonType + "/" + season + "/" + targetWeek).catch(function (err) {
+            console.warn("[rumbles] couldn't load live game status (Pts This Week tooltip will treat every game as \"unknown\", so it won't hide any finished players in Projected mode):", err);
+            return [];
+          })
+        ]).then(function (results) {
+          var league = results[0];
+          var matchups = results[1] || [];
+          var statsMap = arrayToPlayerMap(results[2]);
+          var projMap = arrayToPlayerMap(results[3]);
+          var games = results[4] || [];
+          var teamGameSchedule = buildTeamGameSchedule(games);
+          state.timeSlotColorByLabel = buildTimeSlotColors(teamGameSchedule);
+          var scoringSettings = league.scoring_settings || {};
+          var rosterPositions = league.roster_positions || [];
+          // Computed from the same SCORES_BASE feed regardless of whether
+          // fantasy matchups have posted yet -- the NFL's own game
+          // schedule is what tells us WHEN this week actually starts (see
+          // computeWeekKickoffInfo's comment), and it's available before
+          // Sleeper posts matchups too.
+          var kickoffInfo = computeWeekKickoffInfo(games);
+
+          if (!matchups.length) {
+            // Sleeper hasn't posted matchups for this week yet (too early
+            // in the week) -- nothing to overlay, fall back to cumulative-
+            // only rather than erroring out. Still keep the kickoff info
+            // (if the NFL schedule feed had it) so the status pill can
+            // show "Week N begins <day> <time>" even before matchups post.
+            state.live = {
+              week: targetWeek, season: season, seasonType: seasonType, isLive: false, byRoster: {},
+              hasKickedOff: kickoffInfo.hasKickedOff, firstGameStartMs: kickoffInfo.firstGameStartMs
+            };
+            return null;
+          }
+
+          // playersMeta has to be resolved BEFORE any scoring happens now
+          // (not just before the tooltip/QB-adjustment step, as before) --
+          // rosterScore needs each starter's NFL TEAM to look up their
+          // game status (see playerPoints' comment on why an in-progress
+          // player stays on their pregame projection). ensurePlayersMeta()
+          // only ever pays the real network cost once per page load (it
+          // caches in state.playersMeta and every later call, including
+          // every subsequent 30s poll, resolves that cached copy
+          // immediately) -- so this only adds latency to the very first
+          // load, not to the ongoing poll loop.
+          return ensurePlayersMeta().then(function (playersMeta) {
+            var scoresActual = {};
+            var scoresCustom = {};
+            var pairsByMatchupId = {};
+
+            matchups.forEach(function (m) {
+              var rid = m.roster_id;
+              scoresActual[rid] = rosterScore(m, statsMap, projMap, scoringSettings, "actual", playersMeta, teamGameSchedule);
+              scoresCustom[rid] = rosterScore(m, statsMap, projMap, scoringSettings, "custom", playersMeta, teamGameSchedule);
+              var mid = m.matchup_id;
+              if (mid !== undefined && mid !== null) {
+                if (!pairsByMatchupId[mid]) pairsByMatchupId[mid] = [];
+                pairsByMatchupId[mid].push(rid);
+              }
+            });
+
+            var rumblesActual = computeRumblesForWeek(scoresActual, pairsByMatchupId);
+            var rumblesCustom = computeRumblesForWeek(scoresCustom, pairsByMatchupId);
+
+            var byRoster = {};
+            Object.keys(scoresActual).forEach(function (rid) {
+              byRoster[rid] = { actual: rumblesActual[rid], custom: rumblesCustom[rid] };
+            });
+
+            state.live = {
+              week: targetWeek, season: season, seasonType: seasonType, isLive: true, byRoster: byRoster,
+              hasKickedOff: kickoffInfo.hasKickedOff, firstGameStartMs: kickoffInfo.firstGameStartMs
+            };
+
+            // Attach each roster's per-starter actual/projected breakdown
+            // for the "Points This Week" hover tooltip.
+            matchups.forEach(function (m) {
+              var rid = m.roster_id;
+              if (state.live.byRoster[rid]) {
+                state.live.byRoster[rid].players = buildPlayerBreakdown(m, statsMap, projMap, scoringSettings, playersMeta, teamGameSchedule, rosterPositions);
+              }
+            });
+          });
+        });
+      })
+      .then(function (result) {
+        // Join the "last week" fetch kicked off above -- it was already
+        // running in parallel with everything else in this function, this
+        // just makes sure loadLive()'s own promise (and so every
+        // .then(render) caller) doesn't resolve until state.lastWeek is
+        // populated too. loadLastWeekBreakdown never rejects, so this
+        // never turns a successful main fetch into a failure.
+        return lastWeekPromise.then(function () { return result; });
+      })
+      .catch(function (err) {
+        console.warn("[rumbles] live fetch failed:", err);
+        state.liveError = err;
+      });
+  }
+
+  // ---- rendering ---------------------------------------------------------
+
+  function formatRecord(w, l) { return w + "-" + l; }
+
+  // "Mon 8pm" / "Sun 1pm" / "Thu 8pm" -- a compact day+time label for a
+  // game's kickoff, shown in its own column in the Projected tooltip (see
+  // renderPtsTooltipContent) so an upcoming or in-progress player's game
+  // window is visible at a glance. Always rendered in the viewer's own
+  // local time zone (Date's getDay/getHours are local-time by
+  // construction). Minutes are deliberately never shown -- "1pm", not
+  // "1:00pm" -- to keep this column as compact as possible.
+  var TOOLTIP_DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  function formatGameStartLabel(ms) {
+    if (typeof ms !== "number" || isNaN(ms)) return "";
+    var d = new Date(ms);
+    var hours = d.getHours();
+    var hour12 = hours % 12;
+    if (hour12 === 0) hour12 = 12;
+    return TOOLTIP_DAY_NAMES[d.getDay()] + " " + hour12 + (hours >= 12 ? "pm" : "am");
+  }
+
+  // Full-day-name version of the above, e.g. "Thursday 8pm" -- used by the
+  // pregame status pill ("Week N begins Thursday 8pm"), which has room for
+  // (and reads better with) the unabbreviated day name, unlike the tight
+  // tooltip column formatGameStartLabel is built for.
+  var STATUS_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  function formatWeekStartLabel(ms) {
+    if (typeof ms !== "number" || isNaN(ms)) return "";
+    var d = new Date(ms);
+    var hours = d.getHours();
+    var hour12 = hours % 12;
+    if (hour12 === 0) hour12 = 12;
+    return STATUS_DAY_NAMES[d.getDay()] + " " + hour12 + (hours >= 12 ? "pm" : "am");
+  }
+
+  // Assigns one color per distinct kickoff-time LABEL this week (e.g. every
+  // "Sun 1pm" game shares a color, every "Thu 8pm" game shares a different
+  // one) so a manager whose players' games cluster into the same window is
+  // visible at a glance in the Projected tooltip's kickoff-time column.
+  // Reuses the same --matchup-N palette already used for manager name
+  // colors (not a new color set) -- see TOOLTIP_TIMESLOT_PALETTE. Colors
+  // are assigned in chronological order (earliest kickoff first) so the
+  // mapping is deterministic and stable across the 30s poll re-renders
+  // within a live week (the same real-world time always lands on the same
+  // palette index as long as this week's schedule itself doesn't change,
+  // which it doesn't mid-week). Grouping is by the DISPLAYED label, not the
+  // raw timestamp -- two games a few minutes apart that render as the same
+  // "4pm" (minutes are dropped, see formatGameStartLabel) are deliberately
+  // treated as the same slot for coloring purposes, matching what the
+  // viewer actually sees. With more than 6 distinct slots in a week (rare,
+  // but possible with international/added windows), the palette wraps
+  // around (colors repeat) rather than running out.
+  var TOOLTIP_TIMESLOT_PALETTE = ["var(--matchup-1)", "var(--matchup-2)", "var(--matchup-3)", "var(--matchup-4)", "var(--matchup-5)", "var(--matchup-6)"];
+  function buildTimeSlotColors(teamGameSchedule) {
+    var earliestByLabel = {};
+    Object.keys(teamGameSchedule || {}).forEach(function (team) {
+      var startMs = teamGameSchedule[team].startTimeMs;
+      if (typeof startMs !== "number") return;
+      var label = formatGameStartLabel(startMs);
+      if (!label) return;
+      if (earliestByLabel[label] === undefined || startMs < earliestByLabel[label]) {
+        earliestByLabel[label] = startMs;
+      }
+    });
+    var labels = Object.keys(earliestByLabel).sort(function (a, b) {
+      return earliestByLabel[a] - earliestByLabel[b];
+    });
+    var colorByLabel = {};
+    labels.forEach(function (label, i) {
+      colorByLabel[label] = TOOLTIP_TIMESLOT_PALETTE[i % TOOLTIP_TIMESLOT_PALETTE.length];
+    });
+    return colorByLabel;
+  }
+
+  // Builds the "Points This Week" hover/tap tooltip's row data: one row per
+  // starter, in the fixed slot order from buildPlayerBreakdown (SFLEX,
+  // SFLEX, RB, RB, W/T, W/T, FLEX, TE, K, DEF). Which starters are even
+  // included depends on the Actual/Projected toggle, matching what that
+  // toggle already means everywhere else on this page:
+  //   - Actual ("actual") -- only starters who've completed or are
+  //     currently in a live game (i.e. statsMap actually has an entry for
+  //     them) -- a bench-quality "0.00" row for someone who simply hasn't
+  //     kicked off yet would be noise in a view that's explicitly about
+  //     banked, real production.
+  //   - Projected ("custom") -- only starters whose game is STILL
+  //     developing: not yet started, or currently in progress. A starter
+  //     whose real game has already gone final is deliberately left OUT
+  //     here (even though Actual mode still shows them) -- once a game is
+  //     over their score is fully locked in and already baked into the
+  //     roster total, so re-showing them in a forward-looking Projected
+  //     tooltip is just clutter; the tooltip's whole point in this mode is
+  //     to show what's still live or still to come. Uses game_status from
+  //     buildPlayerBreakdown (Sleeper's own live-scoreboard feed, see
+  //     SCORES_BASE) -- "unknown" (bye week, or that feed failed) is
+  //     treated as NOT complete, so a player is never wrongly hidden just
+  //     because their game status couldn't be confirmed.
+  // Every row always carries both actual AND projected values (rendered as
+  // a table -- see renderPtsTooltipContent). `showStartTime` (true only in
+  // Projected mode -- Actual mode is about banked production, where a
+  // kickoff time isn't relevant) tells the renderer whether to include the
+  // kickoff-time column at all; when it's true, each row's `startLabel` is
+  // its own separate column value (possibly "" for a player whose game
+  // couldn't be resolved), not text folded into the name. `live: true` (a
+  // game currently in progress) is what render's row-coloring uses to
+  // highlight that player in green.
+  function thisWeekTooltip(mode, breakdown, actualPoints, opts) {
+    if (!breakdown || !breakdown.length) return null;
+    // isLastWeek (only ever true for the "Pts Last Week" pregame tooltip --
+    // see render()'s call site) swaps the second column from "Proj" to
+    // "Diff": last week is fully over, so a live-blended "Proj" estimate
+    // would be meaningless there -- what IS useful is how each player's
+    // real score compared to their real PRE-GAME projection (green if they
+    // beat it, red if they fell short). projectionsAvailable gates this on
+    // whether loadLastWeekBreakdown actually got real pregame numbers back
+    // from Sleeper for that week at all -- when it didn't, showProjColumn
+    // below comes out false and renderPtsTooltipContent omits the column
+    // entirely rather than showing a misleading all-zero diff.
+    var isLastWeek = !!(opts && opts.isLastWeek);
+    var showDiffColumn = isLastWeek && !!(opts && opts.projectionsAvailable);
+    var showStartTime = mode !== "actual";
+    var players = mode === "actual"
+      ? breakdown.filter(function (p) { return p.played; })
+      : breakdown.filter(function (p) { return p.game_status !== "complete"; });
+    if (!players.length) return null;
+    var rows = players.map(function (p) {
+      var startLabel = showStartTime ? formatGameStartLabel(p.game_start_ms) : "";
+      return {
+        name: p.name,
+        startLabel: startLabel,
+        // Per-timeslot color (see buildTimeSlotColors) -- null when there's
+        // no label to color (Actual mode, or a game that couldn't be
+        // resolved), in which case the kickoff-time cell just falls back
+        // to its default dimmed CSS color.
+        timeColor: startLabel ? (state.timeSlotColorByLabel[startLabel] || null) : null,
+        actual: p.actual,
+        proj: p.proj,
+        // Actual-minus-pregame-projection, ONLY ever computed for the
+        // "Pts Last Week" tooltip (see showDiffColumn above) -- "proj"
+        // there is last week's real, untouched pregame number (see
+        // loadLastWeekBreakdown's own comment on why teamGameSchedule={}
+        // keeps computePlayerBreakdownEntry from blending it toward
+        // "actual" the way an in-progress player's estimate would be), so
+        // this is a genuine "beat/missed their projection by X" figure,
+        // not a live-vs-live comparison. null (rather than 0) whenever it
+        // isn't applicable, so renderPtsTooltipContent never has to guess
+        // whether a literal 0.00 diff means "exactly on projection" or
+        // "not computed here."
+        diff: showDiffColumn ? round2(num(p.actual) - num(p.proj)) : null,
+        live: p.game_status === "in_progress"
+      };
+    });
+    // Projected mode ONLY -- the whole point is a fixed reference point for
+    // what's otherwise an all-projected view (Actual mode's own tooltip sits
+    // right next to a "Points This Week" figure that's already the real
+    // actual total, so restating it there would be redundant). "162.34:
+    // Actual Pts" -- kept short (no manager name -- the tooltip is already
+    // anchored to one manager's row) so it fits neatly into the header row
+    // alongside Actual/Proj rather than forcing the tooltip wider; see
+    // renderPtsTooltipContent for where it's placed.
+    var actualPointsLabel = (mode !== "actual" && typeof actualPoints === "number")
+      ? actualPoints.toFixed(2) + ": Actual Pts"
+      : null;
+    return {
+      showStartTime: showStartTime,
+      rows: rows,
+      actualPointsLabel: actualPointsLabel,
+      isLastWeek: isLastWeek,
+      // The live tooltip always shows its Proj column (unaffected by any
+      // of this); the last-week tooltip shows its Diff column only when
+      // real pregame projections were actually available to compute it.
+      showProjColumn: !isLastWeek || showDiffColumn
+    };
+  }
+
+  // A roster's current H2H winning/losing streak, walking backward week by
+  // week from `uptoWeek` (the last completed week) through
+  // state.history.weekly (see buildHistoryFromLeague/scoreHistoricalWeek)
+  // -- the same per-week h2h_win field the single-week "W"/"L" badge
+  // always used, just followed back as far as it keeps agreeing with
+  // itself. Returns {result, length}: result is true (winning streak) /
+  // false (losing streak) / null (no streak to show -- the most recent
+  // week itself was a bye or its result is missing), and length is how
+  // many CONSECUTIVE weeks, ending at uptoWeek, share that same result. A
+  // bye or otherwise unresolvable week (h2h_win isn't a real boolean --
+  // see scoreHistoricalWeek/computeRumblesForWeek) breaks the streak
+  // rather than being skipped over: a week you didn't have a real result
+  // for can't extend a streak, whether it's the most recent week (nothing
+  // to show at all -- {null, 0}) or one further back (the streak just
+  // stops there, same as a result flipping).
+  function computeH2hStreak(history, uptoWeek, rosterId) {
+    if (uptoWeek == null || !history || !history.weekly) return { result: null, length: 0 };
+    var result = null;
+    var length = 0;
+    for (var w = uptoWeek; w >= 1; w--) {
+      var weekLog = history.weekly[String(w)];
+      var entry = weekLog ? weekLog[String(rosterId)] : null;
+      var win = entry && typeof entry.h2h_win === "boolean" ? entry.h2h_win : null;
+      if (win === null) break;
+      if (result === null) {
+        result = win;
+        length = 1;
+      } else if (win === result) {
+        length++;
+      } else {
+        break;
+      }
+    }
+    return { result: result, length: length };
+  }
+
+  function buildCombinedStandings() {
+    var histStandings = (state.history && state.history.standings) || [];
+    var weeksCompleted = (state.history && state.history.weeks_completed) || [];
+    var live = state.live;
+    var liveActive = live && live.isLive;
+
+    // "Actual" is the solidified/actualized view: Rumbles, H2H W-L, PF,
+    // PA, and Vs. Field W-L are ALL locked to whatever's already final in
+    // state.history -- the in-progress week's actual-score outcome
+    // is NOT folded into any of them (it can still flip as the games play
+    // out, right up to the final whistle). "This Week" and "Points This
+    // Week" keep showing that in-progress figure live on their own, just
+    // never added into the ranked/season totals.
+    // "Projected" is the projection view: it DOES fold the in-progress
+    // week's (projected) numbers on top of the cumulative totals for all
+    // five of those columns, since the whole point there is a gameday
+    // preview of where the season stands if the week ended right now --
+    // but only once the week has actually KICKED OFF (see
+    // computeWeekKickoffInfo). Before that, matchups may already be
+    // posted (liveActive/liveInfo can exist) but nothing has actually
+    // happened yet, so folding in a hypothetical projected outcome would
+    // mean Rumbles/PF/PA/H2H/Vs. Field all silently move based on a game
+    // that hasn't been played -- pre-kickoff, Projected is required to
+    // match Actual for all of those (see kickoffStarted below).
+    var kickoffStarted = !!(live && live.hasKickedOff);
+    var foldCurrentWeekIntoTotals = state.mode !== "actual" && kickoffStarted;
+
+    var rows = histStandings.map(function (s) {
+      var rid = s.roster_id;
+      var liveInfo = liveActive && live.byRoster[rid] ? live.byRoster[rid][state.mode] : null;
+      var foldInfo = foldCurrentWeekIntoTotals ? liveInfo : null;
+      // Pre-kickoff, "This Week" (Rumbles earned so far) and the live H2H
+      // "who's ahead" signal both source from the ACTUAL bucket regardless
+      // of which mode is selected -- Actual mode's own numbers are always
+      // 0/tied before any game starts (nobody's outscored anybody yet),
+      // and Projected is meant to match that rather than use a
+      // hypothetical, nothing's-happened-yet projected score comparison.
+      // "Points This Week" is deliberately NOT touched by this -- it's
+      // still allowed (expected, even) to show the real pregame PROJECTED
+      // total in Projected mode; see thisWeekPoints below.
+      var actualLiveInfo = liveActive && live.byRoster[rid] ? live.byRoster[rid].actual : null;
+      var rumblesSourceInfo = kickoffStarted ? liveInfo : actualLiveInfo;
+
+      var combinedRumbles = num(s.rumbles) + (foldInfo ? num(foldInfo.rumbles) : 0);
+      var combinedPf = num(s.pf) + (foldInfo ? num(foldInfo.points) : 0);
+      var combinedPa = num(s.pa) + (foldInfo ? num(foldInfo.opponentPoints) : 0);
+      var h2hW = num(s.h2h_w) + (foldInfo && foldInfo.h2hWin === true ? 1 : 0);
+      var h2hL = num(s.h2h_l) + (foldInfo && foldInfo.h2hWin === false ? 1 : 0);
+      var vfW = num(s.vs_field_w) + (foldInfo ? num(foldInfo.teamsOutscored) : 0);
+      var vfL = num(s.vs_field_l) + (foldInfo ? num(foldInfo.teamsOutscoredBy) : 0);
+
+      var weeksForPct = weeksCompleted.length + (foldInfo ? 1 : 0);
+      var pct = weeksForPct ? (combinedRumbles / (weeksForPct * MAX_RUMBLES_PER_WEEK)) * 100 : 0;
+
+      // In Actual mode specifically, once the target week hasn't actually
+      // kicked off yet (pregame -- whether matchups are posted with
+      // everyone still at a real 0.00, or not posted at all), "Points This
+      // Week"/"This Week" (Rumbles) are genuinely uninformative: nobody's
+      // played, so they're just 0.00/0 across the board (a live QB-
+      // adjustment commissioner override aside -- see rumblesSourceInfo/
+      // Ankit's case in test/run_test.py). Rather than show that, fall back
+      // to last week's real, final PF/Rumbles -- this also swaps both
+      // column headers themselves to "Pts Last Week"/"Last Week" (render())
+      // so the numbers are never shown under a misleading label. Projected
+      // mode is untouched -- it already shows a real forward-looking
+      // pregame projection before kickoff, which IS useful information on
+      // its own.
+      var showLastWeekPoints = state.mode === "actual" && !kickoffStarted;
+      var thisWeekRumbles = showLastWeekPoints
+        ? num(s.last_completed_week_rumbles)
+        : (rumblesSourceInfo ? rumblesSourceInfo.rumbles : num(s.last_completed_week_rumbles));
+      var thisWeekPoints = (showLastWeekPoints || !liveInfo) ? round2(num(s.last_completed_week_points)) : liveInfo.points;
+
+      // Whether this roster still has a player (a real starter -- see the
+      // `players` breakdown built by loadLive) whose game HASN'T been positively
+      // confirmed complete yet. Deliberately the inverse of "is anyone
+      // pre_game/in_progress": "unknown" (a bye week, or the live-status
+      // feed just failed to resolve that player -- see
+      // computePlayerBreakdownEntry) is treated as NOT complete here too,
+      // same as thisWeekTooltip's own Projected-mode filter already does
+      // -- a player is never wrongly treated as "done" just because their
+      // status couldn't be confirmed. Only once EVERY player on this
+      // roster is positively "complete" does this manager's Points This
+      // Week figure count as fully locked in for the week (even though the
+      // week overall may still be live for OTHER managers), so only then
+      // does its own LIVE pill turn off -- see this_week_points_live
+      // below. If the breakdown itself is missing entirely (a rare
+      // best-effort failure -- see loadLive's comment), this fails open
+      // (treated as "still incomplete") rather than guessing the pill
+      // should disappear.
+      var playersBreakdown = liveActive && live.byRoster[rid] ? live.byRoster[rid].players : null;
+      var hasIncompletePlayer = playersBreakdown
+        ? playersBreakdown.some(function (p) { return p.game_status !== "complete"; })
+        : true;
+
+      // This roster's current H2H winning/losing streak as of last week
+      // (see computeH2hStreak above) for the manager-name "W"/"nW"/"L"/
+      // "nL" badge, pregame only (showLastWeekPoints) -- state.lastWeek.week
+      // IS the last completed week number (see loadLastWeekBreakdown), so
+      // this walks state.history.weekly backward from there rather than
+      // recomputing anything against live data.
+      var lastWeekNum = state.lastWeek ? state.lastWeek.week : null;
+      var lastWeekStreak = computeH2hStreak(state.history, lastWeekNum, rid);
+
+      return {
+        roster_id: rid,
+        manager: s.manager,
+        rumbles: combinedRumbles,
+        rumble_pct: pct,
+        this_week: thisWeekRumbles,
+        this_week_points: thisWeekPoints,
+        // Same value for every row -- render() reads it off row 0 (or just
+        // recomputes the same state.mode/kickoffStarted check itself) to
+        // decide whether to swap the "Pts This Week" column header to
+        // "Pts Last Week". Carried per-row (rather than returned
+        // separately alongside `rows`) since buildCombinedStandings'
+        // return value is just the plain rows array.
+        this_week_points_is_last_week: showLastWeekPoints,
+        this_week_live: !!liveInfo,
+        // Separate flag just for the "Pts This Week" cell's own LIVE pill
+        // (the "This Week" Rumbles-earned cell keeps using the plain
+        // this_week_live above, unaffected) -- see hasIncompletePlayer's
+        // comment just above. Also gated on kickoffStarted: a LIVE badge
+        // on a number that's just a pregame projection (nothing actually
+        // in progress yet) would be misleading.
+        this_week_points_live: !!liveInfo && hasIncompletePlayer && kickoffStarted,
+        // true/false/null (tie, or no live matchup) -- whether THIS team is
+        // currently ahead in its live H2H matchup. Sourced from
+        // rumblesSourceInfo (see above), so pre-kickoff this is always
+        // based on the tied/0-0 Actual numbers -- nobody's highlighted as
+        // "ahead" before any game starts, matching Actual mode. Used to
+        // color the "This Week"/"Pts This Week" cells to match the
+        // winning manager's own name color (see render()), in BOTH modes.
+        this_week_winning: rumblesSourceInfo ? rumblesSourceInfo.h2hWin : null,
+        pf: combinedPf,
+        pa: combinedPa,
+        h2h_w: h2hW,
+        h2h_l: h2hL,
+        vs_field_w: vfW,
+        vs_field_l: vfL,
+        // This week's H2H opponent, independent of scoring mode (pairing
+        // doesn't change between Actual/Projected, only the scores do) --
+        // used only for the matchup color-coding below, never for the
+        // freeze/fold math above.
+        opponent_roster_id: liveInfo ? liveInfo.opponentRosterId : null,
+        // Per-starter actual/projected breakdown for the "Points This
+        // Week"/"Pts Last Week" hover tooltip. While showLastWeekPoints is
+        // true (Actual mode, target week not kicked off yet), this is
+        // deliberately the LAST completed week's real, final breakdown
+        // (state.lastWeek -- see loadLastWeekBreakdown) rather than the
+        // target week's own (mostly-empty/all-projected) one -- hovering
+        // "Pts Last Week" should show what actually happened last week,
+        // same as the live tooltip shows what's happening THIS week once
+        // it's kicked off. Otherwise unchanged: independent of state.mode
+        // beyond that one swap (the same underlying per-player numbers
+        // back both the Actual and Projected toggle); render() decides how
+        // to format/filter them for display.
+        this_week_player_breakdown: showLastWeekPoints
+          ? ((state.lastWeek && state.lastWeek.byRoster[rid]) || null)
+          : (liveActive && live.byRoster[rid] ? live.byRoster[rid].players : null),
+        // This roster's own real, banked ACTUAL total for the in-progress
+        // week -- independent of state.mode (always the Actual bucket's
+        // own points, see actualLiveInfo above), so it's available to show
+        // inside the Projected-mode "Points This Week" tooltip as a fixed
+        // point of reference (see thisWeekTooltip's actualPointsLabel):
+        // Projected's own headline number there is a projection, and
+        // that's easy to lose sight of, so the tooltip also states the
+        // real actual total it's being projected from/against.
+        this_week_actual_points: actualLiveInfo ? actualLiveInfo.points : null,
+        // This roster's current H2H win/loss streak as of last week (see
+        // lastWeekStreak above) -- {result, length}, null-scoped to
+        // showLastWeekPoints (pregame Actual only, same gate as the "Pts
+        // Last Week"/"Last Week" relabels) so the "W"/"nW"/"L"/"nL" badge
+        // never lingers once the current week's own live H2H result (a
+        // different, already-existing signal -- see this_week_winning)
+        // becomes the relevant one to show instead.
+        last_week_h2h_streak: showLastWeekPoints ? lastWeekStreak : null
+      };
+    });
+
+    // "#" is each team's fixed SEASON STANDING (by cumulative Rumbles,
+    // then PF) -- assigned here, once, before any column-sort reordering
+    // happens in render(). Clicking a column header only changes what
+    // order rows are DISPLAYED in; it must never change what "#" says,
+    // so nothing downstream may touch r.rank again.
+    rows.sort(function (a, b) {
+      if (b.rumbles !== a.rumbles) return b.rumbles - a.rumbles;
+      return b.pf - a.pf;
+    });
+    rows.forEach(function (r, i) { r.rank = i + 1; });
+
+    // Color-tag this week's H2H matchup pairs (e.g. Ben and his Week N
+    // opponent get the same name color) so it's visible at a glance who's
+    // playing whom, even once the table's been re-sorted by some other
+    // column and the two teams are no longer adjacent rows.
+    //
+    // Colors are assigned by ascending roster_id pair order -- NOT by
+    // iterating `rows` in whatever order they're currently sorted in.
+    // That matters because `rows` was just sorted by rumbles/pf just
+    // above, and those values differ between Actual and Projected mode
+    // (the in-progress week's numbers only fold into the total in
+    // Projected mode) -- so the rank order, and therefore which pair got
+    // "seen first", used to differ between modes, which meant a manager
+    // could show up teal in Actual and violet in Projected. Sorting by
+    // roster_id pair instead is completely mode-independent, so a given
+    // matchup keeps the exact same color no matter which mode is
+    // selected, and stays stable across re-renders/polls within the same
+    // live week too. `state.matchupColorByRosterId` (set below) is kept
+    // around for any other section of the page that wants to reuse these
+    // same per-manager colors.
+    var matchupPalette = ["var(--matchup-1)", "var(--matchup-2)", "var(--matchup-3)", "var(--matchup-4)", "var(--matchup-5)", "var(--matchup-6)"];
+    var byRosterId = {};
+    rows.forEach(function (r) { byRosterId[r.roster_id] = r; });
+    var pairKeys = [];
+    var seenPairs = {};
+    rows.forEach(function (r) {
+      if (r.opponent_roster_id == null || !byRosterId[r.opponent_roster_id]) return;
+      var pairKey = [r.roster_id, r.opponent_roster_id].sort(function (a, b) { return a - b; }).join("-");
+      if (!seenPairs[pairKey]) {
+        seenPairs[pairKey] = true;
+        pairKeys.push(pairKey);
+      }
+    });
+    pairKeys.sort(function (a, b) {
+      var aParts = a.split("-").map(Number), bParts = b.split("-").map(Number);
+      return aParts[0] !== bParts[0] ? aParts[0] - bParts[0] : aParts[1] - bParts[1];
+    });
+    var colorForPair = {};
+    pairKeys.forEach(function (pairKey, idx) { colorForPair[pairKey] = matchupPalette[idx % matchupPalette.length]; });
+
+    state.matchupColorByRosterId = {};
+    rows.forEach(function (r) {
+      if (r.opponent_roster_id == null || !byRosterId[r.opponent_roster_id]) return;
+      var pairKey = [r.roster_id, r.opponent_roster_id].sort(function (a, b) { return a - b; }).join("-");
+      r.matchup_color = colorForPair[pairKey];
+      r.matchup_opponent = byRosterId[r.opponent_roster_id].manager;
+      state.matchupColorByRosterId[r.roster_id] = r.matchup_color;
+    });
+
+    return rows;
+  }
+
+  function getSortValue(row, col, colKey) {
+    if (col.type === "string") return row.manager;
+    if (col.type === "record") return row[col.wKey] * 1000 - row[col.lKey];
+    return num(row[colKey]);
+  }
+
+  function compareRows(a, b, colKey, dir) {
+    var col = COLUMNS[colKey];
+    var av = getSortValue(a, col, colKey), bv = getSortValue(b, col, colKey);
+    var cmp = col.type === "string" ? String(av).localeCompare(String(bv)) : av - bv;
+    return dir === "asc" ? cmp : -cmp;
+  }
+
+  function render() {
+    var rows = buildCombinedStandings();
+
+    var displayRows = rows;
+    if (state.sort.key && COLUMNS[state.sort.key]) {
+      displayRows = rows.slice().sort(function (a, b) {
+        return compareRows(a, b, state.sort.key, state.sort.dir);
+      });
+    }
+    // "Pts This Week" -> "Pts Last Week" in Actual mode once the target
+    // week hasn't kicked off yet (see buildCombinedStandings'
+    // showLastWeekPoints/this_week_points_is_last_week -- the CELL values
+    // themselves already swapped to last week's real PF there; this swaps
+    // the column header to match, so the number is never shown under a
+    // label that no longer describes it). Read directly off state rather
+    // than rows[0] so this still works correctly even with zero rows
+    // (empty history). COLUMNS.this_week_points.label is a shared,
+    // module-level string that updateHeaderSortIndicators() (just below)
+    // renders into the <th> every call, so it must be set before that
+    // call runs, every render -- not just once.
+    var pregameActualLabels = state.mode === "actual" && !(state.live && state.live.hasKickedOff);
+    COLUMNS.this_week_points.label = pregameActualLabels ? "Pts Last Week" : "Pts This Week";
+    // Same swap, same condition, for the Rumbles-earned-this-week column --
+    // pregame in Actual mode it shows last week's real Rumbles total
+    // instead (see buildCombinedStandings' thisWeekRumbles), so its header
+    // needs to say so too, exactly like "Pts This Week" already does.
+    COLUMNS.this_week.label = pregameActualLabels ? "Last Week" : "This Week";
+    updateHeaderSortIndicators();
+
+    state.thisWeekTooltipData = {};
+    if (!state.leagueId) {
+      els.body.innerHTML = '<tr><td colspan="10"><div class="empty-state">Paste a Sleeper league ID above to load its Rumbles standings.</div></td></tr>';
+    } else if (!rows.length) {
+      var emptyMsg;
+      if (state.historyError) {
+        emptyMsg = "Couldn't load that league (" + state.historyError.message + "). Double-check the league ID and try again.";
+      } else {
+        emptyMsg = "No completed weeks yet this season — check back once Week 1 wraps up.";
+      }
+      els.body.innerHTML = '<tr><td colspan="10"><div class="empty-state">' + escapeHtml(emptyMsg) + "</div></td></tr>";
+    } else {
+      els.body.innerHTML = displayRows.map(function (r) {
+        var nameHtml;
+        if (r.matchup_color) {
+          var title = 'This week\'s matchup: ' + escapeHtml(r.manager) + ' vs ' + escapeHtml(r.matchup_opponent);
+          nameHtml = '<span class="matchup-name" style="color:' + r.matchup_color + '" title="' + title + '">' + escapeHtml(r.manager) + "</span>";
+        } else {
+          nameHtml = escapeHtml(r.manager);
+        }
+        // "W"/"nW"/"L"/"nL" badge for the manager's current H2H
+        // winning/losing streak as of last week -- pregame Actual mode only
+        // (r.last_week_h2h_streak is already null outside that state, see
+        // buildCombinedStandings/computeH2hStreak), right alongside the
+        // "Last Week"/"Pts Last Week" relabeled columns it's giving context
+        // for. A 1-week streak shows as a plain "W"/"L" (unchanged from
+        // before this was a streak), and a 2+ week streak is prefixed with
+        // its length ("3W", "2L", ...). result===null (a bye, or the data
+        // just isn't there for last week) shows no badge at all.
+        if (r.last_week_h2h_streak && r.last_week_h2h_streak.result === true) {
+          var winStreakText = r.last_week_h2h_streak.length > 1 ? r.last_week_h2h_streak.length + "W" : "W";
+          nameHtml += ' <span class="lastweek-h2h-badge lastweek-h2h-win">' + winStreakText + "</span>";
+        } else if (r.last_week_h2h_streak && r.last_week_h2h_streak.result === false) {
+          var lossStreakText = r.last_week_h2h_streak.length > 1 ? r.last_week_h2h_streak.length + "L" : "L";
+          nameHtml += ' <span class="lastweek-h2h-badge lastweek-h2h-loss">' + lossStreakText + "</span>";
+        }
+        // The tooltip itself is a custom element (see pts-tooltip show/
+        // hide/toggle below), not a native title attribute -- a native
+        // title tooltip never appears on tap on mobile at all, so this
+        // cell just carries a data-roster-id for the delegated hover/tap
+        // handlers to look up pre-built tooltip data from
+        // state.thisWeekTooltipData with.
+        var ptsTooltip = thisWeekTooltip(state.mode, r.this_week_player_breakdown, r.this_week_actual_points, {
+          isLastWeek: r.this_week_points_is_last_week,
+          projectionsAvailable: !!(state.lastWeek && state.lastWeek.projectionsAvailable)
+        });
+        var ptsCellAttrs = ' data-roster-id="' + r.roster_id + '"';
+        if (ptsTooltip) {
+          state.thisWeekTooltipData[r.roster_id] = ptsTooltip;
+          ptsCellAttrs += ' class="thisweek-pts has-tooltip"';
+        } else {
+          ptsCellAttrs += ' class="thisweek-pts"';
+        }
+        // The team currently AHEAD in its live H2H matchup (under whichever
+        // scoring mode -- Actual or Projected -- is currently selected;
+        // r.this_week_winning is already mode-scoped) gets both its "This
+        // Week" (Rumbles earned so far) and "Pts This Week" values colored
+        // the same as its own manager name (r.matchup_color) -- an
+        // at-a-glance "who's winning" signal in either mode. The trailing
+        // team (or anyone not in a live matchup at all) just keeps the
+        // default colors from the .thisweek/.thisweek-pts CSS classes --
+        // no inline style overrides them in that case.
+        var thisWeekCellAttrs = "";
+        if (r.this_week_winning === true && r.matchup_color) {
+          thisWeekCellAttrs = ' style="color:' + r.matchup_color + '"';
+          ptsCellAttrs += ' style="color:' + r.matchup_color + '"';
+        }
+        return "<tr>" +
+          '<td class="rank">' + r.rank + "</td>" +
+          '<td class="manager">' + nameHtml + "</td>" +
+          '<td class="rumbles">' + r.rumbles.toFixed(0) + "</td>" +
+          '<td class="thisweek"' + thisWeekCellAttrs + ">" + r.this_week.toFixed(0) + "</td>" +
+          "<td" + ptsCellAttrs + ">" + r.this_week_points.toFixed(2) + (r.this_week_points_live ? '<span class="badge-live">LIVE</span>' : "") + "</td>" +
+          "<td>" + r.rumble_pct.toFixed(1) + "%</td>" +
+          "<td>" + r.pf.toFixed(2) + "</td>" +
+          "<td>" + r.pa.toFixed(2) + "</td>" +
+          "<td>" + formatRecord(r.h2h_w, r.h2h_l) + "</td>" +
+          "<td>" + formatRecord(r.vs_field_w, r.vs_field_l) + "</td>" +
+          "</tr>";
+      }).join("");
+    }
+    refreshOrHidePtsTooltip();
+
+    var season = (state.history && state.history.season) || (state.live && state.live.season) || "";
+    var leagueName = (state.history && state.history.league_name) || null;
+    els.subtitle.textContent = leagueName ? (leagueName + " · " + season + " season") : (season ? season + " season" : "Paste a league ID to begin");
+
+    // "Live" (green dot) now specifically means the week has both posted
+    // matchups AND actually kicked off (see computeWeekKickoffInfo) --
+    // matchups alone (isLive) used to be enough to show this, which is
+    // what let a pregame week get badged "Live" and fold hypothetical
+    // projected numbers into the season totals days before a snap was
+    // played. Matchups-posted-but-not-kicked-off-yet, OR matchups not
+    // posted yet but the NFL schedule feed already knows the week's first
+    // kickoff, both show the grey pregame pill instead.
+    var isLive = state.live && state.live.isLive;
+    var kickoffStarted = !!(state.live && state.live.hasKickedOff);
+    var trulyLive = isLive && kickoffStarted;
+    els.statusDot.className = "dot" + (trulyLive ? " live" : "");
+    if (trulyLive) {
+      els.statusText.textContent = "Live: Week " + state.live.week;
+      els.liveWeekLabel.textContent = "Showing live Week " + state.live.week + " (" + MODE_LABELS[state.mode] + ")";
+    } else if (state.live && state.live.firstGameStartMs) {
+      els.statusText.textContent = "Week " + state.live.week + " begins " + formatWeekStartLabel(state.live.firstGameStartMs);
+      els.liveWeekLabel.textContent = isLive ? "Showing Week " + state.live.week + " (" + MODE_LABELS[state.mode] + ") — not live yet" : "";
+    } else if (state.live && state.live.seasonType === "off") {
+      els.statusText.textContent = "Offseason";
+      els.liveWeekLabel.textContent = "";
+    } else if (state.live && state.live.seasonType === "pre") {
+      els.statusText.textContent = "Preseason — Rumbles start Week 1";
+      els.liveWeekLabel.textContent = "";
+    } else {
+      els.statusText.textContent = "Not live right now";
+      els.liveWeekLabel.textContent = "";
+    }
+
+    els.updatedPill.textContent = "Last updated " + new Date().toLocaleTimeString();
+
+    if (state.historyError && rows.length) {
+      // We have rows (from a prior successful load) but the most recent
+      // attempt to refresh this league's data failed -- say so without
+      // blanking out what we've already got.
+      els.errorBanner.textContent = "Couldn't refresh season standings (" + state.historyError.message + ") — showing the last known data.";
+      els.errorBanner.classList.add("show");
+    } else if (state.liveError) {
+      els.errorBanner.textContent = "Couldn't reach Sleeper for a live update — showing the last known standings. Retrying every 30s.";
+      els.errorBanner.classList.add("show");
+    } else {
+      els.errorBanner.classList.remove("show");
+    }
+  }
+
+  // ---- "Pts This Week" hover/tap tooltip ---------------------------------
+  // A single reusable element (see the #pts-tooltip div and .pts-tooltip
+  // CSS) rather than a native title attribute -- title tooltips never
+  // appear on tap on mobile at all, so this is shown/hidden/positioned by
+  // hand and driven by real hover on devices that have one, or tap on
+  // devices that don't (see the delegated listeners below).
+
+  function positionPtsTooltip(cell) {
+    var tip = els.ptsTooltip;
+    var cellRect = cell.getBoundingClientRect();
+    var margin = 6;
+    var tipRect = tip.getBoundingClientRect();
+    var left = cellRect.left;
+    var maxLeft = window.innerWidth - tipRect.width - margin;
+    if (left > maxLeft) left = maxLeft;
+    if (left < margin) left = margin;
+    var top = cellRect.bottom + margin;
+    if (top + tipRect.height > window.innerHeight - margin) {
+      // Not enough room below (e.g. a short mobile screen) -- flip above.
+      top = cellRect.top - tipRect.height - margin;
+      if (top < margin) top = margin;
+    }
+    tip.style.left = left + "px";
+    tip.style.top = top + "px";
+  }
+
+  // Renders the tooltip's data (see thisWeekTooltip) as a real table: an
+  // optional kickoff-time column (Projected mode only, per `showStartTime`
+  // -- see the .pts-tooltip-time CSS for why it's a separate right-aligned
+  // column rather than text folded into the name), then name, then a
+  // header row labeling the Actual/Proj columns, then one row per player.
+  // In Projected mode, that header row's otherwise-blank left cell(s) --
+  // normally the kickoff-time column plus the name column, both blank --
+  // collapse into a single colspan="2" cell showing tooltip.actualPointsLabel
+  // -- "162.34: Actual Pts" -- a fixed real-points reference point sharing
+  // the header row with Actual/Proj rather than getting a row of its own
+  // (kept short specifically so it fits neatly there without forcing the
+  // tooltip wider). Flush against the tooltip's left edge, directly above
+  // the kickoff-time column's own values, rather than starting one column
+  // in. Given its own class (not the plain header style Actual/Proj use) so
+  // it reads as real content, not a column caption -- see
+  // .pts-tooltip-actual-total.
+  // A row for a player whose game is currently live gets the
+  // .pts-tooltip-live class (green text on name/actual/proj -- see that
+  // CSS rule), which is why the proj cell below carries its own
+  // .pts-tooltip-proj class instead of being class-less like before.
+  function renderPtsTooltipContent(tooltip) {
+    var showStartTime = tooltip.showStartTime;
+    var hasActualTotal = !!tooltip.actualPointsLabel;
+    var isLastWeek = !!tooltip.isLastWeek;
+    // Whether the second numeric column shows at all -- always true for the
+    // live tooltip; for the "Pts Last Week" tooltip, only when real pregame
+    // projections were available to compute the Diff column from (see
+    // thisWeekTooltip/loadLastWeekBreakdown's projectionsAvailable) --
+    // otherwise the whole column (header included) is omitted rather than
+    // showing a misleading flat 0.00 "Proj" that's really just "actual"
+    // restated, or a diff computed from nothing.
+    var showProjColumn = tooltip.showProjColumn !== false;
+    // When the actual-points reference line is present it takes over the
+    // WHOLE header-row left side (colspan="2") -- both the kickoff-time
+    // header cell and the name header cell, which are otherwise blank --
+    // so the label sits flush left, directly above the kickoff-time
+    // column's own values, instead of starting one column in past the
+    // time column's width. So the separate time header cell is skipped
+    // here; the colspan cell below stands in for it.
+    var timeHeaderHtml = (showStartTime && !hasActualTotal) ? '<th class="pts-tooltip-time"></th>' : "";
+    var bodyHtml = tooltip.rows.map(function (r) {
+      var timeStyle = r.timeColor ? ' style="color:' + r.timeColor + '"' : "";
+      var timeCellHtml = showStartTime ? '<td class="pts-tooltip-time"' + timeStyle + ">" + escapeHtml(r.startLabel) + "</td>" : "";
+      var rowClass = r.live ? "pts-tooltip-live" : "";
+      var projCellHtml = "";
+      if (showProjColumn) {
+        if (isLastWeek) {
+          // Diff cell: green/red by sign.
+          var diffColor = typeof r.diff === "number" ? (r.diff >= 0 ? "var(--good)" : "var(--bad)") : null;
+          var diffStyle = diffColor ? ' style="color:' + diffColor + '"' : "";
+          var diffText = typeof r.diff === "number" ? (r.diff >= 0 ? "+" : "") + r.diff.toFixed(2) : "—";
+          projCellHtml = '<td class="pts-tooltip-proj"' + diffStyle + ">" + diffText + "</td>";
+        } else {
+          projCellHtml = '<td class="pts-tooltip-proj">' + r.proj.toFixed(2) + "</td>";
+        }
+      }
+      return '<tr class="' + rowClass + '">' +
+        timeCellHtml +
+        '<td class="pts-tooltip-name">' + escapeHtml(r.name) + "</td>" +
+        '<td class="pts-tooltip-actual">' + r.actual.toFixed(2) + "</td>" +
+        projCellHtml +
+        "</tr>";
+    }).join("");
+    var actualTotalHtml = hasActualTotal
+      ? '<th' + (showStartTime ? ' colspan="2"' : "") + ' class="pts-tooltip-name pts-tooltip-actual-total">' + escapeHtml(tooltip.actualPointsLabel) + "</th>"
+      : '<th class="pts-tooltip-name"></th>';
+    var projHeaderHtml = showProjColumn ? ("<th>" + (isLastWeek ? "Diff" : "Proj") + "</th>") : "";
+    els.ptsTooltip.innerHTML =
+      "<table><thead><tr>" + timeHeaderHtml + actualTotalHtml + '<th>Actual</th>' + projHeaderHtml +
+      "</tr></thead><tbody>" +
+      bodyHtml +
+      "</tbody></table>";
+  }
+
+  function showPtsTooltip(cell) {
+    var rid = cell.getAttribute("data-roster-id");
+    var tooltip = state.thisWeekTooltipData[rid];
+    if (!tooltip) return;
+    state.activePtsTooltipRosterId = rid;
+    renderPtsTooltipContent(tooltip);
+    els.ptsTooltip.setAttribute("aria-hidden", "false");
+    els.ptsTooltip.classList.add("visible");
+    positionPtsTooltip(cell);
+  }
+
+  function hidePtsTooltip() {
+    if (state.activePtsTooltipRosterId == null) return;
+    state.activePtsTooltipRosterId = null;
+    els.ptsTooltip.classList.remove("visible");
+    els.ptsTooltip.setAttribute("aria-hidden", "true");
+  }
+
+  // Called at the end of every render() (including each 30s poll). A tap-
+  // triggered tooltip (unlike hover) has no natural "pointer left the
+  // cell" moment to close it on its own, so if one's open when fresh
+  // numbers come in, keep it open with updated content/position for the
+  // same roster -- or close it if that roster no longer has anything to
+  // show (e.g. their last starter's game just finished in Projected mode).
+  function refreshOrHidePtsTooltip() {
+    var rid = state.activePtsTooltipRosterId;
+    if (rid == null) return;
+    var tooltip = state.thisWeekTooltipData[rid];
+    var cell = els.body.querySelector('td.thisweek-pts[data-roster-id="' + rid + '"]');
+    if (!tooltip || !cell) {
+      hidePtsTooltip();
+      return;
+    }
+    renderPtsTooltipContent(tooltip);
+    positionPtsTooltip(cell);
+  }
+
+  function ptsCellFromEvent(e) {
+    return e.target && e.target.closest ? e.target.closest("td.thisweek-pts.has-tooltip") : null;
+  }
+
+  // Real hover (mouse/trackpad) gets real hover behavior; anything without
+  // a fine hover-capable pointer (phones, tablets) gets tap-to-toggle
+  // instead, dismissed by tapping anywhere else. Picking exactly one of
+  // the two (rather than wiring up both everywhere) avoids the classic
+  // mobile double-fire bug where a tap's synthetic mouseover shows the
+  // tooltip and the click that immediately follows it then reads as "already
+  // open" and instantly toggles it back off. Shared with the "How to Use"
+  // tooltip below, which is the same capability check.
+  var supportsHover = !!(window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches);
+
+  if (supportsHover) {
+    els.body.addEventListener("mouseover", function (e) {
+      var cell = ptsCellFromEvent(e);
+      if (cell) showPtsTooltip(cell);
+    });
+    els.body.addEventListener("mouseout", function (e) {
+      var cell = ptsCellFromEvent(e);
+      if (cell && (!e.relatedTarget || !cell.contains(e.relatedTarget))) hidePtsTooltip();
+    });
+  } else {
+    els.body.addEventListener("click", function (e) {
+      var cell = ptsCellFromEvent(e);
+      if (!cell) return;
+      e.stopPropagation();
+      var rid = cell.getAttribute("data-roster-id");
+      if (state.activePtsTooltipRosterId === rid) {
+        hidePtsTooltip();
+      } else {
+        showPtsTooltip(cell);
+      }
+    });
+    document.addEventListener("click", function (e) {
+      if (state.activePtsTooltipRosterId != null && (!e.target.closest || !e.target.closest("td.thisweek-pts"))) {
+        hidePtsTooltip();
+      }
+    });
+  }
+
+  // A position: fixed tooltip is anchored to viewport coordinates captured
+  // at show-time -- if the page (or the table's own horizontal scroller)
+  // scrolls afterward without re-showing it, it would be left floating
+  // over whatever's now under those old coordinates rather than the cell
+  // it's actually about. Simplest correct fix: just dismiss it on scroll.
+  // `capture: true` here is what catches a scroll inside .table-scroll --
+  // scroll events don't bubble, but they do propagate in the capture phase.
+  window.addEventListener("scroll", hidePtsTooltip, true);
+  window.addEventListener("resize", hidePtsTooltip);
+
+  // ---- "How to Use" hover/click tooltip ----------------------------------
+  // Static explainer content (not per-row data, unlike the Pts tooltip
+  // above), anchored to a single fixed button in the header instead of a
+  // table cell. Hovering shows it on a device with real hover (same
+  // capability check as the Pts tooltip, supportsHover); clicking/tapping
+  // the button also works on any device. On a hover-capable device a real
+  // click is always preceded by a real mouseenter (the cursor has to
+  // arrive at the button before the click fires), so a plain show/hide
+  // toggle on click would immediately re-close what hover had just opened
+  // -- instead, click there PINS it open (stays open even once the mouse
+  // leaves) and a second click un-pins it. On a device with no hover at
+  // all, there's no such race, so click is just a plain open/closed toggle
+  // there, matching the Pts tooltip's own tap-to-toggle behavior.
+  var howtoPinned = false;
+
+  function positionHowToTooltip() {
+    var margin = 6;
+    var btnRect = els.howtoBtn.getBoundingClientRect();
+    var tipRect = els.howtoTooltip.getBoundingClientRect();
+    // Right-align to the button by default -- the button sits near the
+    // right edge of the header, so opening from its left edge would run
+    // the tooltip off the right side of the viewport on most screens.
+    var left = btnRect.right - tipRect.width;
+    var maxLeft = window.innerWidth - tipRect.width - margin;
+    if (left > maxLeft) left = maxLeft;
+    if (left < margin) left = margin;
+    var top = btnRect.bottom + margin;
+    if (top + tipRect.height > window.innerHeight - margin) {
+      top = btnRect.top - tipRect.height - margin;
+      if (top < margin) top = margin;
+    }
+    els.howtoTooltip.style.left = left + "px";
+    els.howtoTooltip.style.top = top + "px";
+  }
+
+  function showHowTo() {
+    els.howtoTooltip.classList.add("visible");
+    els.howtoTooltip.setAttribute("aria-hidden", "false");
+    positionHowToTooltip();
+  }
+
+  function hideHowTo() {
+    els.howtoTooltip.classList.remove("visible");
+    els.howtoTooltip.setAttribute("aria-hidden", "true");
+    howtoPinned = false;
+  }
+
+  function isHowToVisible() {
+    return els.howtoTooltip.classList.contains("visible");
+  }
+
+  if (supportsHover) {
+    els.howtoBtn.addEventListener("mouseenter", showHowTo);
+    els.howtoBtn.addEventListener("mouseleave", function () {
+      if (!howtoPinned) hideHowTo();
+    });
+    els.howtoBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      howtoPinned = !howtoPinned;
+      if (howtoPinned) {
+        showHowTo();
+      } else {
+        hideHowTo();
+      }
+    });
+  } else {
+    els.howtoBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (isHowToVisible()) {
+        hideHowTo();
+      } else {
+        showHowTo();
+      }
+    });
+  }
+  // Dismiss on an outside click/tap -- but not one landing on the tooltip
+  // itself, so its text stays selectable while it's pinned open.
+  document.addEventListener("click", function (e) {
+    if (isHowToVisible() && (!e.target.closest || !e.target.closest("#howto-btn, .howto-tooltip"))) {
+      hideHowTo();
+    }
+  });
+  window.addEventListener("scroll", hideHowTo, true);
+  window.addEventListener("resize", hideHowTo);
+
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  // ---- controls ------------------------------------------------------
+
+  // Each mode's default sort -- applied on switching TO that mode, but
+  // only until the user clicks a column header themselves (see
+  // state.userSorted). Actual defaults to the natural season-standings
+  // order (key: null); Projected defaults to "Pts This Week" descending
+  // (highest live/projected score first), since that's the figure people
+  // actually watch move during a live week -- natural rank order there is
+  // still last week's standings until the fold happens.
+  var DEFAULT_SORT_BY_MODE = {
+    actual: { key: null, dir: "desc" },
+    custom: { key: "this_week_points", dir: "desc" }
+  };
+
+  function setMode(mode) {
+    state.mode = mode;
+    els.modeActual.classList.toggle("active", mode === "actual");
+    els.modeCustom.classList.toggle("active", mode === "custom");
+    if (!state.userSorted) {
+      var def = DEFAULT_SORT_BY_MODE[mode];
+      state.sort = { key: def.key, dir: def.dir };
+    }
+    render();
+  }
+
+  function refreshNow() {
+    if (state.refreshing || !state.leagueId) return;
+    state.refreshing = true;
+    els.refreshBtn.disabled = true;
+    els.refreshBtn.textContent = "Refreshing…";
+    loadLive()
+      .then(render)
+      .finally(function () {
+        state.refreshing = false;
+        els.refreshBtn.disabled = false;
+        els.refreshBtn.textContent = "Refresh now";
+      });
+  }
+
+  // ---- column sorting --------------------------------------------------
+
+  function setSort(key) {
+    var col = COLUMNS[key];
+    if (!col) return;
+    state.userSorted = true;
+    if (state.sort.key === key) {
+      state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";
+    } else {
+      state.sort.key = key;
+      // Numbers/records default to descending (biggest first, usually
+      // what you want for a stat); text defaults to ascending (A-Z).
+      state.sort.dir = col.type === "string" ? "asc" : "desc";
+    }
+    render();
+  }
+
+  function updateHeaderSortIndicators() {
+    Object.keys(COLUMNS).forEach(function (key) {
+      var th = els.headerCells[key];
+      if (!th) return;
+      var col = COLUMNS[key];
+      var active = state.sort.key === key;
+      var arrow = active ? (state.sort.dir === "asc" ? " ▲" : " ▼") : "";
+      th.textContent = col.label + arrow;
+      th.classList.toggle("sort-active", active);
+    });
+  }
+
+  function attachSortHandlers() {
+    var ths = document.querySelectorAll("#standings-table thead th[data-key]");
+    for (var i = 0; i < ths.length; i++) {
+      (function (th) {
+        var key = th.getAttribute("data-key");
+        els.headerCells[key] = th;
+        th.classList.add("sortable");
+        th.addEventListener("click", function () { setSort(key); });
+      })(ths[i]);
+    }
+  }
+  attachSortHandlers();
+
+  els.modeActual.addEventListener("click", function () { setMode("actual"); });
+  els.modeCustom.addEventListener("click", function () { setMode("custom"); });
+  els.refreshBtn.addEventListener("click", refreshNow);
+
+  // ---- league ID input ---------------------------------------------------
+  // The Base version's whole reason for being: rather than one fixed,
+  // bundled league (the private DTF Club version), anyone can paste any
+  // Sleeper league ID here and see that league's own Rumbles standings.
+  // The last-loaded ID is remembered in this browser (localStorage, on
+  // this page's own published origin) purely as a per-visitor convenience
+  // so a reload doesn't require re-pasting it -- never sent anywhere, and
+  // never relied on for anything the page can't recover from if it's
+  // missing or unreadable (a private/locked-down browser, cleared site
+  // data, etc).
+  var LAST_LEAGUE_ID_KEY = "rumbles-base-last-league-id";
+
+  function readLastLeagueId() {
+    try {
+      return window.localStorage.getItem(LAST_LEAGUE_ID_KEY) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function saveLastLeagueId(id) {
+    try {
+      window.localStorage.setItem(LAST_LEAGUE_ID_KEY, id);
+    } catch (e) {
+      // Best-effort only -- a private window or locked-down browser can
+      // throw here; losing the "remember it for next time" convenience is
+      // fine, the page still works fully without it.
+    }
+  }
+
+  function stopPolling() {
+    if (state.pollTimer) {
+      clearInterval(state.pollTimer);
+      state.pollTimer = null;
+    }
+  }
+
+  function startPolling() {
+    stopPolling();
+    state.pollTimer = setInterval(function () {
+      loadLive().then(render);
+    }, POLL_MS);
+  }
+
+  function showLeagueIdError(message) {
+    if (els.leagueIdError) els.leagueIdError.textContent = message || "";
+  }
+
+  function submitLeagueId() {
+    var raw = (els.leagueIdInput.value || "").trim();
+    if (!raw) {
+      showLeagueIdError("Paste a Sleeper league ID first.");
+      return;
+    }
+    // Sleeper league IDs are plain numeric strings -- catches an obviously
+    // wrong paste (a league URL, a username, stray whitespace/punctuation)
+    // before spending a network round-trip on it. Not exhaustive validation
+    // (buildHistoryFromLeague's own fetch is the real check), just a fast,
+    // friendly first pass.
+    if (!/^\d+$/.test(raw)) {
+      showLeagueIdError("That doesn't look like a Sleeper league ID -- it should be a long number, not a URL or username.");
+      return;
+    }
+    showLeagueIdError("");
+    stopPolling();
+    saveLastLeagueId(raw);
+    els.leagueIdBtn.disabled = true;
+    els.leagueIdBtn.textContent = "Loading…";
+    loadLeague(raw).finally(function () {
+      els.leagueIdBtn.disabled = false;
+      els.leagueIdBtn.textContent = "Load League";
+      if (state.leagueId && !state.historyError) startPolling();
+    });
+  }
+
+  els.leagueIdBtn.addEventListener("click", submitLeagueId);
+  els.leagueIdInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") submitLeagueId();
+  });
+
+  // ---- boot ------------------------------------------------------------
+  // Unlike the private DTF Club version (which always boots straight into
+  // its one bundled league), the Base version starts on a blank table --
+  // render() already shows the "paste a league ID" empty state while
+  // state.leagueId is null (see render()'s !state.leagueId branch) -- and
+  // only loads real data once a league ID is submitted, either by the
+  // visitor just now or from a remembered previous visit (see
+  // readLastLeagueId above).
+  var lastLeagueId = readLastLeagueId();
+  if (lastLeagueId) {
+    els.leagueIdInput.value = lastLeagueId;
+    submitLeagueId();
+  } else {
+    render();
+  }
+})();
+</script>
+</body>
+</html>

@@ -664,7 +664,7 @@
   </div>
 
   <footer>
-    <span>9 Rumbles for the H2H win, +1 per team outscored that week (up to 20/week).</span>
+    <span id="rumbles-footnote">9 Rumbles for the H2H win, +1 per team outscored that week.</span>
     <span id="live-week-label"></span>
   </footer>
 </div>
@@ -699,8 +699,18 @@
   var SCORES_BASE = "https://api.sleeper.app/scores/nfl";
   var PLAYERS_URL = API_V1 + "/players/nfl";
   var POLL_MS = 30000;
-  var MAX_RUMBLES_PER_WEEK = 20;
+  // How many Rumbles a single week can theoretically award varies by
+  // league size -- it's always 9 (RUMBLES_PER_WIN) for the H2H win plus
+  // one per OTHER team in the league you could outscore, i.e.
+  // RUMBLES_PER_WIN + (teamCount - 1). A 12-team league tops out at 20;
+  // a 10-team league tops out at 18. See maxRumblesPerWeekForTeams below
+  // -- there is deliberately no fixed constant here anymore, since this
+  // version has to work for any league size, not just the original
+  // 12-team one it was spun off from.
   var RUMBLES_PER_WIN = 9;
+  function maxRumblesPerWeekForTeams(teamCount) {
+    return RUMBLES_PER_WIN + Math.max(0, num(teamCount) - 1);
+  }
   // Player metadata (position/team/injury_status) is a multi-MB payload
   // that rarely changes mid-session -- fetched once on load, then only
   // re-fetched (at most this often) when a live QB-adjustment trigger is
@@ -776,6 +786,7 @@
     ptsTooltip: document.getElementById("pts-tooltip"),
     howtoBtn: document.getElementById("howto-btn"),
     howtoTooltip: document.getElementById("howto-tooltip"),
+    footnote: document.getElementById("rumbles-footnote"),
     headerCells: {} // filled in by attachSortHandlers(): column key -> <th>
   };
 
@@ -1657,8 +1668,13 @@
         }
 
         return loadWeek(0).then(function () {
+          // This league's actual team count -- one roster per team,
+          // regardless of league size -- drives the per-week Rumbles cap
+          // (see maxRumblesPerWeekForTeams above): 18/week for a 10-team
+          // league, 20/week for 12 teams, etc.
+          var maxRumblesPerWeek = maxRumblesPerWeekForTeams(rosters.length);
           var weeksPlayed = completedWeeks.length;
-          var maxPossible = weeksPlayed * MAX_RUMBLES_PER_WEEK;
+          var maxPossible = weeksPlayed * maxRumblesPerWeek;
           var lastWeekKey = completedWeeks.length ? String(completedWeeks[completedWeeks.length - 1]) : null;
 
           var standings = Object.keys(cumulative).map(function (rid) {
@@ -1687,7 +1703,8 @@
             league_id: leagueId,
             league_name: league.name || null,
             weeks_completed: completedWeeks,
-            max_rumbles_per_week: MAX_RUMBLES_PER_WEEK,
+            team_count: rosters.length,
+            max_rumbles_per_week: maxRumblesPerWeek,
             standings: standings,
             weekly: weekly
           };
@@ -2237,7 +2254,8 @@
       var vfL = num(s.vs_field_l) + (foldInfo ? num(foldInfo.teamsOutscoredBy) : 0);
 
       var weeksForPct = weeksCompleted.length + (foldInfo ? 1 : 0);
-      var pct = weeksForPct ? (combinedRumbles / (weeksForPct * MAX_RUMBLES_PER_WEEK)) * 100 : 0;
+      var leagueMaxRumblesPerWeek = (state.history && state.history.max_rumbles_per_week) || 0;
+      var pct = weeksForPct && leagueMaxRumblesPerWeek ? (combinedRumbles / (weeksForPct * leagueMaxRumblesPerWeek)) * 100 : 0;
 
       // In Actual mode specifically, once the target week hasn't actually
       // kicked off yet (pregame -- whether matchups are posted with
@@ -2555,6 +2573,14 @@
     var season = (state.history && state.history.season) || (state.live && state.live.season) || "";
     var leagueName = (state.history && state.history.league_name) || null;
     els.subtitle.textContent = leagueName ? (leagueName + " · " + season + " season") : (season ? season + " season" : "Paste a league ID to begin");
+
+    // The weekly Rumbles cap depends on how many teams THIS league has
+    // (see maxRumblesPerWeekForTeams) -- before a league is loaded there's
+    // no team count to show a number for, so the footnote just states the
+    // rule without a cap.
+    var leagueMaxPerWeek = (state.history && state.history.max_rumbles_per_week) || null;
+    els.footnote.textContent = "9 Rumbles for the H2H win, +1 per team outscored that week" +
+      (leagueMaxPerWeek ? " (up to " + leagueMaxPerWeek + "/week)." : ".");
 
     // "Live" (green dot) now specifically means the week has both posted
     // matchups AND actually kicked off (see computeWeekKickoffInfo) --
